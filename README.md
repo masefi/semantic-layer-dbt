@@ -24,10 +24,35 @@ BigQuery Public Dataset (thelook_ecommerce)
             ↓
   Semantic Exposure Layer       ← Public-safe views
             ↓
-     Cube Semantic Layer
+     Cube Semantic Layer        ← Metric definitions & Query API
             ↓
-  Streamlit UI + NLQ API
+  Streamlit UI + NLQ API        ← Presentation Layer
 ```
+
+## 🧠 Why Cube?
+
+**The Core Idea:** dbt prepares trusted data; Cube turns that data into a queryable semantic API.
+
+Without Cube, business logic leaks into SQL queries, BI tools, and ad-hoc scripts. With Cube, metrics are defined once and governed centrally.
+
+### ❌ Without Cube
+- **Flow:** Streamlit/Slack → Raw SQL → BigQuery
+- **Problems:** Splintered logic, no semantic validation, hard to maintain.
+
+### ✅ With Cube
+- **Flow:** Streamlit/Slack → Cube API → BigQuery
+- **Benefits:**
+  - **Single Semantic Contract:** `total_revenue` means the same thing everywhere.
+  - **Governance:** Access control and validation at the API level.
+  - **Design:** Clean separation of concerns (dbt = transformation, Cube = semantics).
+
+### What Cube Does (vs dbt)
+| Layer | Responsibility | Example |
+|-------|----------------|---------|
+| **dbt** | Transformation, Cleaning, Materialization | `fct_orders`, `dim_users` |
+| **Cube** | Metric Definitions, Query Generation, API | `Orders.totalRevenue`, `Users.count` |
+
+Cube **never** transforms raw data. It reads trusted marts/views from dbt and serves them.
 
 ## 📁 Project Structure
 
