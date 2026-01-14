@@ -1,0 +1,51 @@
+version: 2
+
+models:
+  - name: fct_orders
+    description: Fact table for orders at order grain with revenue and items
+    columns:
+      - name: order_id
+        description: Primary key
+        tests:
+          - not_null
+          - unique
+      - name: user_id
+        description: Foreign key to dim_users
+        tests:
+          - not_null
+      - name: order_date
+        description: Date of the order
+      - name: total_revenue
+        description: Total revenue for the order
+      - name: order_status
+        description: Current status of the order
+
+  - name: dim_users
+    description: User dimension with demographics and order history
+    columns:
+      - name: user_id
+        description: Primary key
+        tests:
+          - not_null
+          - unique
+      - name: country
+        description: User country
+      - name: total_orders
+        description: Total number of orders placed
+
+  - name: dim_products
+    description: Product dimension with attributes and pricing
+    columns:
+      - name: product_id
+        description: Primary key
+        tests:
+          - not_null
+          - unique
+      - name: product_name
+        description: Product name
+      - name: brand
+        description: Product brand
+      - name: category
+        description: Product category
+      - name: profit_margin
+        description: Retail price minus cost

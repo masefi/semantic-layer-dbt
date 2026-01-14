@@ -1,0 +1,17 @@
+version: 2
+
+models:
+  - name: daily_revenue
+    description: Pre-aggregated daily revenue metrics
+    columns:
+      - name: order_date
+        description: Date of orders
+        tests:
+          - not_null
+          - unique
+      - name: order_count
+        description: Number of orders for the day
+      - name: total_revenue
+        description: Total revenue for the day
+      - name: avg_order_value
+        description: Average order value for the day
