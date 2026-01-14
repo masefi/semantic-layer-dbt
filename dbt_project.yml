@@ -32,3 +32,9 @@ models:
     marts:
       +materialized: table
       +schema: "{{ target.schema }}"
+
+    # SEMANTIC EXPOSURE LAYER
+    # Public-facing views
+    semantic:
+      +materialized: view
+      +schema: public_demo

@@ -1,0 +1,34 @@
+version: 2
+
+models:
+  - name: vw_orders
+    description: Public-facing view of valid orders
+    columns:
+      - name: order_id
+        tests:
+          - unique
+          - not_null
+      - name: revenue
+        description: Total revenue for the order
+
+  - name: vw_daily_revenue
+    description: Public-facing daily revenue trends
+    columns:
+      - name: order_date
+        tests:
+          - unique
+          - not_null
+      - name: daily_revenue
+        description: Total revenue for the day
+
+  - name: vw_users
+    description: Public-facing user directory
+    columns:
+      - name: user_id
+        tests:
+          - unique
+          - not_null
+      - name: country
+        description: User country
+      - name: total_orders
+        description: Count of lifetime orders

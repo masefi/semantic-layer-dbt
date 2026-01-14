@@ -1,0 +1,38 @@
+cubes:
+  - name: orders
+    sql: select * from `semantic-layer-484020.retail_marts_dev_public_demo.vw_orders`
+
+    measures:
+      - name: count
+        type: count
+        title: "Total Orders"
+
+      - name: total_revenue
+        sql: revenue
+        type: sum
+        title: "Total Revenue"
+        format: currency
+
+      - name: avg_order_value
+        sql: revenue
+        type: avg
+        title: "Average Order Value"
+        format: currency
+
+    dimensions:
+      - name: order_id
+        sql: order_id
+        type: string
+        primary_key: true
+
+      - name: status
+        sql: order_status
+        type: string
+
+      - name: country
+        sql: user_country
+        type: string
+
+      - name: order_date
+        sql: order_date
+        type: time

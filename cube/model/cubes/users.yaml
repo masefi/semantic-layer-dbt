@@ -1,0 +1,31 @@
+cubes:
+  - name: users
+    sql: select * from `semantic-layer-484020.retail_marts_dev_public_demo.vw_users`
+
+    measures:
+      - name: count
+        type: count
+        title: "Total Users"
+
+      - name: total_orders_placed
+        sql: total_orders
+        type: sum
+        title: "Total Orders Placed by Users"
+
+    dimensions:
+      - name: user_id
+        sql: user_id
+        type: string
+        primary_key: true
+
+      - name: country
+        sql: country
+        type: string
+
+      - name: city
+        sql: city
+        type: string
+
+      - name: first_order_date
+        sql: first_order_at
+        type: time

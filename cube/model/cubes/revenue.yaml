@@ -1,0 +1,27 @@
+cubes:
+  - name: revenue_daily
+    sql: select * from `semantic-layer-484020.retail_marts_dev_public_demo.vw_daily_revenue`
+
+    measures:
+      - name: total_revenue
+        sql: daily_revenue
+        type: sum
+        title: "Total Revenue (Daily Rollup)"
+        format: currency
+
+      - name: total_orders
+        sql: order_count
+        type: sum
+        title: "Total Orders (Daily Rollup)"
+
+      - name: avg_daily_order_value
+        sql: avg_order_value
+        type: avg
+        title: "Average Daily Order Value"
+        format: currency
+
+    dimensions:
+      - name: date
+        sql: order_date
+        type: time
+        primary_key: true
