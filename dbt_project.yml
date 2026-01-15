@@ -2,7 +2,7 @@ name: 'retail_semantic_layer'
 version: '1.0.0'
 config-version: 2
 
-profile: 'default'
+profile: 'retail_semantic_layer'
 
 # File paths
 model-paths: ["models"]
