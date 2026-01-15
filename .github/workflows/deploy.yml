@@ -1,0 +1,77 @@
+name: Deploy to Google Cloud Run
+
+on:
+  push:
+    branches:
+      - "main"
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Authenticate to Google Cloud
+    - name: Authenticate to GCP
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    # Set up Google Cloud SDK
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+    # Authenticate Docker to Artifact Registry
+    - name: Authenticate Docker to AR
+      run: |
+        gcloud auth configure-docker us-central1-docker.pkg.dev
+
+    # --- BUILD & PUSH: UI ---
+    - name: Build Streamlit UI Image
+      run: |
+        docker build --platform linux/amd64 \
+          -t us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/retail-repo/semantic-ui:latest \
+          -f ui/Dockerfile ui/
+
+    - name: Push Streamlit UI Image
+      run: |
+        docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/retail-repo/semantic-ui:latest
+
+    # --- BUILD & PUSH: API ---
+    - name: Build NLQ API Image
+      run: |
+        docker build --platform linux/amd64 \
+          -t us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/retail-repo/semantic-api:latest \
+          -f api/Dockerfile api/
+
+    - name: Push NLQ API Image
+      run: |
+        docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/retail-repo/semantic-api:latest
+
+    # --- DEPLOY: UI ---
+    - name: Deploy UI to Cloud Run
+      run: |
+        gcloud run deploy semantic-ui \
+          --image us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/retail-repo/semantic-ui:latest \
+          --platform managed \
+          --region ${{ secrets.GCP_REGION }} \
+          --allow-unauthenticated \
+          --memory 1Gi \
+          --port 8501 \
+          --set-env-vars API_URL=https://semantic-api-${{ secrets.GCP_PROJECT_HASH }}.a.run.app
+
+    # --- DEPLOY: API ---
+    - name: Deploy API to Cloud Run
+      run: |
+        gcloud run deploy semantic-api \
+          --image us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/retail-repo/semantic-api:latest \
+          --platform managed \
+          --region ${{ secrets.GCP_REGION }} \
+          --allow-unauthenticated \
+          --memory 512Mi \
+          --port 8080
