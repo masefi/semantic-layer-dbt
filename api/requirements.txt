@@ -1,3 +1,5 @@
-fastapi==0.109.0
-uvicorn==0.27.0
-pydantic==2.6.0
+fastapi
+uvicorn
+pydantic
+google-cloud-bigquery
+google-cloud-aiplatform>=1.38.0

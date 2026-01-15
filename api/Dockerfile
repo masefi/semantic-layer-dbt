@@ -1,4 +1,4 @@
-FROM python:3.9-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -9,8 +9,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy app code
 COPY . .
 
-# Expose API port
+# Environment defaults
+ENV PORT=8080
+ENV GCP_PROJECT_ID=semantic-layer-484020
+ENV BQ_DATASET=retail_marts_dev
+
 EXPOSE 8080
 
-# Run command
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
