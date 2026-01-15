@@ -56,28 +56,18 @@ Cube **never** transforms raw data. It reads trusted marts/views from dbt and se
 
 ## 📁 Project Structure
 
-```
 models/
 ├── staging/
-│   └── thelook_ecommerce/
-│       ├── stg_orders.sql
-│       ├── stg_order_items.sql
-│       ├── stg_users.sql
-│       ├── stg_products.sql
-│       ├── sources.yml
-│       └── _staging_schema.yml
+│   └── thelook_ecommerce/      # 7 sources (orders, events, inventory...)
 │
 └── marts/
-    ├── core/
-    │   ├── fct_orders.sql        # Fact: order-level with revenue
-    │   ├── dim_users.sql         # Dim: user demographics
-    │   ├── dim_products.sql      # Dim: product catalog
-    │   └── _core_schema.yml
-    │
-    └── metrics/
-        ├── daily_revenue.sql     # Pre-aggregated daily metrics
-        └── _metrics_schema.yml
-```
+    ├── core/                   # Dimensions (users, products, date)
+    ├── customers/              # RFM, Cohorts, Retention, LTV
+    ├── products/               # Affinity, Performance, Brand/Category
+    ├── revenue/                # Daily/Monthly Financials, Geo Revenue
+    ├── operations/             # Fulfillment, Returns, Status Funnels
+    └── web/                    # Sessions, Traffic Funnels, Browser Stats
+
 
 ## 🔧 Setup
 
@@ -134,25 +124,36 @@ dbt docs generate
 dbt docs serve
 ```
 
-## 📊 Data Models
+## 📊 Data Models & Analytics
 
-### Staging Layer
+### 1. Customer Intelligence (`marts/customers`)
+| Model | Insights | Key Metrics |
+|-------|----------|-------------|
+| `fct_customer_orders` | Lifetime Value | `customer_lifespan_days`, `avg_order_value`, `is_repeat` |
+| `fct_rfm_scores` | Segmentation | `recency_score`, `frequency_score`, `rfm_segment` (e.g., "Champions") |
+| `fct_customer_cohorts` | Retention | `retention_rate`, `churn_rate` |
+| `fct_cohort_retention` | Vintage Analysis | `cohort_size`, `active_customers` |
 
-| Model | Source Table | Description |
-|-------|--------------|-------------|
-| `stg_orders` | `orders` | Order headers with status & timestamps |
-| `stg_order_items` | `order_items` | Line items with sale price |
-| `stg_users` | `users` | User demographics |
-| `stg_products` | `products` | Product catalog |
+### 2. Product Analytics (`marts/products`)
+| Model | Insights | Key Metrics |
+|-------|----------|-------------|
+| `fct_product_affinity` | **Basket Analysis** | `support`, `confidence`, `lift` (Product A + B co-occurrence) |
+| `fct_product_performance` | Profitability | `profit_margin`, `return_rate`, `days_since_last_sale` |
+| `fct_brand_performance` | Brand Strengths | `brand_rank`, `revenue_growth` |
 
-### Mart Layer
+### 3. Revenue Analytics (`marts/revenue`)
+| Model | Insights | Key Metrics |
+|-------|----------|-------------|
+| `fct_monthly_revenue` | Growth Trends | `mom_growth_pct`, `yoy_growth_pct` |
+| `fct_cohort_revenue` | LTV Trends | `revenue_per_active_user` |
+| `fct_geography_revenue` | Regional Perf | `country_rank`, `market_penetration` |
 
-| Model | Grain | Key Metrics |
-|-------|-------|-------------|
-| `fct_orders` | Order | `total_revenue`, `item_count` |
-| `dim_users` | User | `total_orders`, `first_order_at` |
-| `dim_products` | Product | `profit_margin` |
-| `daily_revenue` | Day | `total_revenue`, `avg_order_value` |
+### 4. Operations & Web (`marts/ops`, `marts/web`)
+| Model | Insights | Key Metrics |
+|-------|----------|-------------|
+| `fct_fulfillment` | SLA Tracking | `processing_hours`, `shipping_hours`, `on_time_delivery_rate` |
+| `fct_web_funnel` | Conversion | `product_view_rate`, `cart_to_purchase_rate`, `bounce_rate` |
+| `fct_sessions` | User Behavior | `session_duration`, `events_per_session` |
 
 ## 🧪 Testing
 
