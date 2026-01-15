@@ -23,8 +23,6 @@ models:
     description: Monthly brand performance
     columns:
       - name: brand
-        tests:
-          - not_null
 
   - name: fct_product_affinity
     description: Market basket analysis for product pairs

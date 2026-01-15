@@ -5,7 +5,7 @@ with orders as (
 monthly as (
     select
         user_country as country,
-        date_trunc(created_at, month) as order_month,
+        date_trunc(order_created_at, month) as order_month,
         
         count(*) as total_orders,
         sum(total_revenue) as total_revenue,

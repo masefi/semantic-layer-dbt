@@ -4,7 +4,7 @@ with orders as (
 
 daily as (
     select
-        date(created_at) as order_date,
+        date(order_created_at) as order_date,
         
         count(*) as total_orders,
         sum(item_count) as total_items,

@@ -4,7 +4,7 @@ with orders as (
 
 monthly as (
     select
-        date_trunc(created_at, month) as order_month,
+        date_trunc(order_created_at, month) as order_month,
         count(*) as total_month_orders,
         sum(total_revenue) as total_month_revenue
     from orders
@@ -13,7 +13,7 @@ monthly as (
 
 status_grouped as (
     select
-        date_trunc(created_at, month) as order_month,
+        date_trunc(order_created_at, month) as order_month,
         status as order_status,
         count(*) as order_count,
         sum(item_count) as item_count,

@@ -12,7 +12,7 @@ COPY . .
 # Environment defaults
 ENV PORT=8080
 ENV GCP_PROJECT_ID=semantic-layer-484020
-ENV BQ_DATASET=retail_marts_dev_retail_marts_dev
+ENV BQ_DATASET=retail_marts_dev
 
 EXPOSE 8080
 

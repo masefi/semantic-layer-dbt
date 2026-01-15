@@ -15,7 +15,7 @@ user_months as (
         m.activity_month
     from users u
     cross join months m
-    where m.activity_month >= date_trunc(u.created_at, month)
+    where m.activity_month >= date(date_trunc(u.created_at, month))
       and m.activity_month <= date_trunc(current_date, month)
 ),
 
