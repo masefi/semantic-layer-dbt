@@ -25,13 +25,13 @@ models:
     # Light transformations, 1:1 with sources
     staging:
       +materialized: view
-      +schema: "{{ target.schema }}"
+
 
     # MART MODELS
     # Business logic, facts & dimensions
     marts:
       +materialized: table
-      +schema: "{{ target.schema }}"
+
 
     # SEMANTIC EXPOSURE LAYER
     # Public-facing views
