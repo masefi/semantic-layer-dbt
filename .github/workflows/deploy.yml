@@ -28,6 +28,34 @@ jobs:
       run: |
         gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
+    # --- PROVISION DATA WAREHOUSE ---
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+
+    - name: Install dbt
+      run: pip install dbt-bigquery
+
+    - name: Configure dbt profile
+      run: |
+        echo '${{ secrets.GCP_SA_KEY }}' > ./gcp-sa-key.json
+        echo "retail_semantic_layer:" > profiles.yml
+        echo "  target: dev" >> profiles.yml
+        echo "  outputs:" >> profiles.yml
+        echo "    dev:" >> profiles.yml
+        echo "      type: bigquery" >> profiles.yml
+        echo "      method: service-account" >> profiles.yml
+        echo "      project: ${{ secrets.GCP_PROJECT_ID }}" >> profiles.yml
+        echo "      dataset: retail_marts_dev" >> profiles.yml
+        echo "      threads: 4" >> profiles.yml
+        echo "      keyfile: ./gcp-sa-key.json" >> profiles.yml
+
+    - name: Run dbt build
+      run: |
+        dbt deps
+        dbt build --profiles-dir .
+
     # --- BUILD & PUSH ---
     - name: Build and Push UI Image
       run: |
