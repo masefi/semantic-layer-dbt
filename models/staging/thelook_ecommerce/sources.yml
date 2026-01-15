@@ -9,3 +9,6 @@ sources:
       - name: order_items
       - name: users
       - name: products
+      - name: events
+      - name: inventory_items
+      - name: distribution_centers

@@ -1,51 +1,41 @@
-{{
-    config(
-        materialized='table'
-    )
-}}
-
 with users as (
 
     select * from {{ ref('stg_users') }}
 
 ),
 
-orders as (
-
-    select * from {{ ref('stg_orders') }}
-
-),
-
-user_first_order as (
-
-    select
-        user_id,
-        min(created_at) as first_order_at,
-        count(*) as total_orders
-    from orders
-    group by user_id
-
-),
-
 final as (
 
     select
-        u.user_id,
-        u.first_name,
-        u.last_name,
-        u.email,
-        u.age,
-        u.gender,
-        u.city,
-        u.state,
-        u.country,
-        u.postal_code,
-        u.traffic_source,
-        u.created_at as user_created_at,
-        fo.first_order_at,
-        coalesce(fo.total_orders, 0) as total_orders
-    from users u
-    left join user_first_order fo on u.user_id = fo.user_id
+        user_id,
+        email,
+        first_name,
+        last_name,
+        age,
+        gender,
+        city,
+        country,
+        latitude,
+        longitude,
+        traffic_source,
+        created_at,
+        
+        -- Cohort & Tenure
+        format_date('%Y-%m', date(created_at)) as signup_cohort,
+        date_diff(current_date, date(created_at), day) as tenure_days,
+        
+        -- Age Segmentation
+        case 
+            when age < 18 then 'Under 18'
+            when age >= 18 and age <= 24 then '18-24'
+            when age >= 25 and age <= 34 then '25-34'
+            when age >= 35 and age <= 44 then '35-44'
+            when age >= 45 and age <= 54 then '45-54'
+            when age >= 55 and age <= 64 then '55-64'
+            else '65+'
+        end as age_group
+
+    from users
 
 )
 

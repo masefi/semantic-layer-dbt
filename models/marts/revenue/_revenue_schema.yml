@@ -1,0 +1,35 @@
+version: 2
+
+models:
+  - name: fct_daily_revenue
+    description: Comprehensive daily revenue metrics
+    columns:
+      - name: order_date
+        tests:
+          - unique
+          - not_null
+
+  - name: fct_monthly_revenue
+    description: Monthly revenue with growth rates (MoM, YoY)
+    columns:
+      - name: order_month
+        tests:
+          - unique
+          - not_null
+
+  - name: fct_cohort_revenue
+    description: Revenue contribution by cohort vintage per month
+    columns:
+      - name: signup_cohort
+        tests:
+          - not_null
+      - name: order_month
+        tests:
+          - not_null
+
+  - name: fct_geography_revenue
+    description: Revenue by country and month
+    columns:
+      - name: country
+        tests:
+          - not_null

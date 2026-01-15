@@ -1,0 +1,45 @@
+version: 2
+
+models:
+  - name: fct_customer_orders
+    description: Customer lifetime value and profile metrics
+    columns:
+      - name: user_id
+        tests:
+          - unique
+          - not_null
+      - name: customer_status
+        description: Segment based on order count (New, Repeat, Loyal)
+        tests:
+          - accepted_values:
+              values: ['New', 'Repeat', 'Loyal']
+
+  - name: fct_rfm_scores
+    description: RFM Segmentation for customers
+    columns:
+      - name: user_id
+        tests:
+          - unique
+          - not_null
+      - name: rfm_segment
+        description: Named segment based on RFM scores
+
+  - name: fct_customer_cohorts
+    description: Dense monthly activity log per user for retention analysis
+    columns:
+      - name: user_id
+        tests:
+          - not_null
+      - name: activity_month
+        tests:
+          - not_null
+
+  - name: fct_customer_retention
+    description: Aggregated retention rates by cohort
+    columns:
+      - name: signup_cohort
+        tests:
+          - not_null
+      - name: months_since_signup
+        tests:
+          - not_null

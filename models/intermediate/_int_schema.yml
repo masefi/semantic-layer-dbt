@@ -1,0 +1,21 @@
+version: 2
+
+models:
+  - name: int_order_items_enriched
+    description: Wide table of order items with user and product details
+    columns:
+      - name: order_item_id
+        tests:
+          - unique
+          - not_null
+      - name: order_id
+        tests:
+          - not_null
+
+  - name: int_user_order_summary
+    description: Pre-aggregated user stats
+    columns:
+      - name: user_id
+        tests:
+          - unique
+          - not_null

@@ -1,0 +1,36 @@
+version: 2
+
+models:
+  - name: fct_product_performance
+    description: Product-level sales and return metrics
+    columns:
+      - name: product_id
+        tests:
+          - unique
+          - not_null
+
+  - name: fct_category_performance
+    description: Monthly category performance
+    columns:
+      - name: category
+        tests:
+          - not_null
+      - name: order_month
+        tests:
+          - not_null
+
+  - name: fct_brand_performance
+    description: Monthly brand performance
+    columns:
+      - name: brand
+        tests:
+          - not_null
+
+  - name: fct_product_affinity
+    description: Market basket analysis for product pairs
+    columns:
+      - name: product_name_a
+        tests:
+          - not_null
+      - name: support
+        description: Probability of co-occurrence

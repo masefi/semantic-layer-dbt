@@ -82,3 +82,30 @@ models:
         description: Product category
       - name: retail_price
         description: Retail price
+
+  - name: stg_events
+    description: Web events from users
+    columns:
+      - name: event_id
+        tests:
+          - unique
+          - not_null
+      - name: user_id
+        tests:
+          - not_null
+
+  - name: stg_inventory_items
+    description: Inventory tracking
+    columns:
+      - name: inventory_item_id
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_distribution_centers
+    description: Distribution center locations
+    columns:
+      - name: distribution_center_id
+        tests:
+          - unique
+          - not_null
