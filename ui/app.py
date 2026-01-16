@@ -15,7 +15,8 @@ st.set_page_config(
 )
 
 # API Configuration
-API_URL = os.environ.get("API_URL", "https://semantic-api-5592650460.us-central1.run.app")
+# Actual service URL: https://semantic-api-wh4agku6ma-uc.a.run.app
+API_URL = os.environ.get("API_URL", "https://semantic-api-wh4agku6ma-uc.a.run.app")
 
 # --- HEADER ---
 st.title("🛍️ Retail Semantic Layer Demo")
