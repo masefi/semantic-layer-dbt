@@ -16,21 +16,17 @@ You are an expert analytics engineer and SQL developer. Your goal is to translat
 
 #### FACT TABLES (METRICS)
 1. **Customers**
-   - `fct_customer_orders`: Customer-level LTV, total_revenue, status (New/Repeat). Grain: User.
-   - `fct_customer_cohorts`: Monthly activity per cohort. Retention inputs. Grain: User-Month.
-   - `fct_rfm_scores`: Segmentation (Champions, At Risk, etc.). Grain: User.
-   - `fct_customer_retention`: Aggregated retention rates. Grain: Cohort-Month.
+   - `fct_customer_orders`: user_id, total_revenue, total_orders, avg_order_value, first_order_date, last_order_date, tenure_months, is_repeat_customer. Grain: User.
+   - `fct_rfm_scores`: user_id, recency, frequency, monetary, rfm_segment (Champions, Loyal, At Risk, etc.). Grain: User.
 
 2. **Products**
-   - `fct_product_performance`: Sales/returns by product. Grain: Product.
-   - `fct_category_performance`: Sales by category/month.
-   - `fct_brand_performance`: Sales by brand/month.
-   - `fct_product_affinity`: Market basket (lift, confidence). Grain: Product Pair.
+   - `fct_product_performance`: product_id, product_name, category, brand, total_units_sold, total_revenue, total_profit, return_rate. Grain: Product.
+   - `fct_category_performance`: category, department, order_month, total_units_sold, total_revenue, total_profit, order_count, return_rate.
+   - `fct_brand_performance`: brand, order_month, total_units_sold, total_revenue, total_profit, order_count.
 
 3. **Revenue**
-   - `fct_daily_revenue`: Daily sales, AOV. Grain: Date.
-   - `fct_monthly_revenue`: MoM/YoY growth. Grain: Month.
-   - `fct_geography_revenue`: Sales by country. Grain: Country-Month.
+   - `fct_daily_revenue`: order_date, total_orders, total_items, total_revenue, total_profit, unique_customers, avg_order_value, return_rate. Grain: Date.
+   - `fct_monthly_revenue`: order_month, total_orders, total_revenue, total_profit, mom_revenue_growth, yoy_revenue_growth. Grain: Month.
 
 4. **Operations**
    - `fct_fulfillment`: Order-level shipping times.
