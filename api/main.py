@@ -19,10 +19,13 @@ app = FastAPI(title="Retail Semantic Layer NLQ API")
 # Function to get clients lazily or at startup
 def get_clients():
     project_id = os.environ.get("GCP_PROJECT_ID", "semantic-layer-484020")
+    logger.info(f"Initializing Vertex AI with project: {project_id}")
     try:
         vertexai.init(project=project_id, location="us-central1")
         # Using a stable, supported version
-        llm = GenerativeModel("gemini-1.5-flash-002") 
+        model_name = "gemini-2.5-flash"
+        logger.info(f"Using model: {model_name}")
+        llm = GenerativeModel(model_name) 
         bq = bigquery.Client(project=project_id)
         return llm, bq
     except Exception as e:
@@ -116,7 +119,7 @@ def health_check():
     return {
         "status": "ok", 
         "service": "Retail Semantic NLQ API",
-        "model": "gemini-2.5-flash-preview-05-20",
+        "model": "gemini-2.5-flash",
         "dataset": BQ_DATASET,
         "clients_initialized": llm_client is not None
     }
