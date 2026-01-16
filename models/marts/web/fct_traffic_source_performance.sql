@@ -3,7 +3,7 @@ with sessions as (
 ),
 
 orders as (
-    select user_id, created_at, total_revenue from {{ ref('fct_orders') }}
+    select user_id, order_created_at, total_revenue from {{ ref('fct_orders') }}
 ),
 
 session_revenue as (
@@ -16,8 +16,8 @@ session_revenue as (
         coalesce(o.total_revenue, 0) as attribution_revenue
     from sessions s
     left join orders o 
-        on s.user_id = o.user_id 
-        and date(s.session_start_at) = date(o.created_at) -- Same day attribution
+    on s.user_id = o.user_id 
+    and date(s.session_start_at) = date(o.order_created_at) -- Same day attribution
 ),
 
 monthly as (

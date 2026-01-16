@@ -22,7 +22,7 @@ user_months as (
 orders as (
     select 
         user_id, 
-        date_trunc(created_at, month) as order_month,
+        date_trunc(order_created_at, month) as order_month,
         count(*) as monthly_orders,
         sum(item_count) as monthly_items,
         Coalesce(sum(total_revenue), 0) as monthly_revenue
@@ -35,7 +35,7 @@ joined as (
         um.user_id,
         um.signup_cohort,
         um.activity_month,
-        date_diff(um.activity_month, date_trunc(u.created_at, month), month) as months_since_signup,
+        date_diff(um.activity_month, date(date_trunc(u.created_at, month)), month) as months_since_signup,
         
         coalesce(o.monthly_orders, 0) as orders_in_month,
         coalesce(o.monthly_items, 0) as items_in_month,

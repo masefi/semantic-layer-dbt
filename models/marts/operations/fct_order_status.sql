@@ -14,7 +14,7 @@ monthly as (
 status_grouped as (
     select
         date_trunc(order_created_at, month) as order_month,
-        status as order_status,
+        order_status,
         count(*) as order_count,
         sum(item_count) as item_count,
         sum(total_revenue) as revenue

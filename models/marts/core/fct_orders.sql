@@ -10,9 +10,9 @@ with orders as (
 
 ),
 
-order_items as (
+order_items_enriched as (
 
-    select * from {{ ref('stg_order_items') }}
+    select * from {{ ref('int_order_items_enriched') }}
 
 ),
 
@@ -22,13 +22,14 @@ users as (
 
 ),
 
-order_revenue as (
+order_metrics as (
 
     select
         order_id,
         sum(sale_price) as total_revenue,
+        sum(item_profit) as total_profit,
         count(*) as line_item_count
-    from order_items
+    from order_items_enriched
     group by order_id
 
 ),
@@ -47,10 +48,15 @@ final as (
         o.delivered_at,
         o.returned_at,
         o.item_count,
-        coalesce(r.total_revenue, 0) as total_revenue,
-        coalesce(r.line_item_count, 0) as line_item_count
+        coalesce(m.total_revenue, 0) as total_revenue,
+        coalesce(m.total_profit, 0) as total_profit,
+        coalesce(m.line_item_count, 0) as line_item_count,
+        
+        -- Business logic
+        row_number() over (partition by o.user_id order by o.created_at) = 1 as is_first_order
+        
     from orders o
-    left join order_revenue r on o.order_id = r.order_id
+    left join order_metrics m on o.order_id = m.order_id
     left join users u on o.user_id = u.user_id
 
 )

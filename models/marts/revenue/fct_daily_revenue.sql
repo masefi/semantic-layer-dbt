@@ -14,8 +14,8 @@ daily as (
         count(distinct user_id) as unique_customers,
         count(distinct case when is_first_order then user_id end) as new_customers,
         
-        countif(status = 'Returned') as orders_returned,
-        countif(status = 'Cancelled') as orders_cancelled
+        countif(order_status = 'Returned') as orders_returned,
+        countif(order_status = 'Cancelled') as orders_cancelled
 
     from orders
     group by 1
