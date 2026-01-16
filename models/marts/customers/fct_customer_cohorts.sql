@@ -22,7 +22,7 @@ user_months as (
 orders as (
     select 
         user_id, 
-        date_trunc(order_created_at, month) as order_month,
+        date(date_trunc(order_created_at, month)) as order_month,
         count(*) as monthly_orders,
         sum(item_count) as monthly_items,
         Coalesce(sum(total_revenue), 0) as monthly_revenue
