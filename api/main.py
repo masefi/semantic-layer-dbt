@@ -21,8 +21,8 @@ def get_clients():
     project_id = os.environ.get("GCP_PROJECT_ID", "semantic-layer-484020")
     try:
         vertexai.init(project=project_id, location="us-central1")
-        # Using the specific version requested
-        llm = GenerativeModel("gemini-2.5-flash-preview-05-20") 
+        # Using a stable, supported version
+        llm = GenerativeModel("gemini-1.5-flash-002") 
         bq = bigquery.Client(project=project_id)
         return llm, bq
     except Exception as e:
