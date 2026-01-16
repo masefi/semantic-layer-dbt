@@ -3,6 +3,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import time
+import requests
+import os
 from datetime import datetime, timedelta
 
 # Page Config
@@ -12,24 +14,26 @@ st.set_page_config(
     layout="wide"
 )
 
+# API Configuration
+API_URL = os.environ.get("API_URL", "https://semantic-api-5592650460.us-central1.run.app")
+
 # --- HEADER ---
 st.title("🛍️ Retail Semantic Layer Demo")
 st.markdown("""
-**Architecture:** Data Warehouse (BigQuery) → Transformation (dbt) → Semantic Layer (Cube) → UI (Streamlit)
+**Architecture:** Data Warehouse (BigQuery) → Transformation (dbt) → Semantic Layer (Gemini) → UI (Streamlit)
 """)
 
 # --- SIDEBAR CONFIG ---
 st.sidebar.header("🔌 Connection Settings")
 connection_mode = st.sidebar.radio(
     "Data Source Mode",
-    ["Mock (Demo)", "Live (Cube API)"],
+    ["Mock (Demo)", "Live (Semantic API)"],
     index=0,
-    help="Select 'Mock' to simulate Cube responses for demo purposes without running a local Cube server."
+    help="Select 'Mock' to simulate responses or 'Live' to query real data via Gemini NLQ API."
 )
 
-if connection_mode == "Live (Cube API)":
-    cube_url = st.sidebar.text_input("Cube API URL", "http://localhost:4000/cubejs-api/v1")
-    cube_token = st.sidebar.text_input("Security Token", type="password")
+if connection_mode == "Live (Semantic API)":
+    st.sidebar.success(f"Connected to: {API_URL}")
 
 st.sidebar.markdown("---")
 st.sidebar.header("🗓️ Filters")
@@ -43,6 +47,21 @@ status_filter = st.sidebar.multiselect(
     ["Complete", "Processing", "Shipped", "Returned", "Cancelled"],
     default=["Complete", "Processing", "Shipped"]
 )
+
+# --- API HELPERS ---
+def call_semantic_api(query: str):
+    """Call the NLQ API to get data."""
+    try:
+        response = requests.post(
+            f"{API_URL}/ask",
+            json={"query": query, "execute": True},
+            timeout=30
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        st.error(f"API Error: {str(e)}")
+        return None
 
 # --- MOCK DATA GENERATOR ---
 def get_mock_data():
@@ -69,21 +88,38 @@ def load_data(mode):
         time.sleep(0.5) # Simulate API latency
         return get_mock_data()
     else:
-        st.error("Live connection not implemented yet. Please switch to Mock mode.")
-        return pd.DataFrame(), pd.DataFrame()
+        # Fetch Live Data for Dashboards
+        with st.spinner("Fetching live performance metrics..."):
+            # 1. Trend Data
+            trend_resp = call_semantic_api("Show me daily revenue for the last 30 days")
+            df_rev = pd.DataFrame(trend_resp.get("data", [])) if trend_resp else pd.DataFrame()
+            
+            # 2. Category Data
+            cat_resp = call_semantic_api("What are the total sales by category for the last 30 days?")
+            df_cat = pd.DataFrame(cat_resp.get("data", [])) if cat_resp else pd.DataFrame()
+            
+            if df_rev.empty or df_cat.empty:
+                st.warning("Could not fetch some live data. Falling back to empty tables.")
+            
+            return df_rev, df_cat
 
 # Load Data
 df_revenue, df_category = load_data(connection_mode)
 
 # --- KPI METRICS ---
 if not df_revenue.empty:
-    total_revenue = df_revenue["daily_revenue"].sum()
-    total_orders = df_revenue["order_count"].sum()
+    # Handle different column names that might come from NLQ
+    rev_col = [c for c in df_revenue.columns if 'revenue' in c.lower() or 'sales' in c.lower()][0]
+    count_col = [c for c in df_revenue.columns if 'count' in c.lower() or 'orders' in c.lower()]
+    count_col = count_col[0] if count_col else None
+
+    total_revenue = df_revenue[rev_col].sum()
+    total_orders = df_revenue[count_col].sum() if count_col else 0
     avg_order_val = total_revenue / total_orders if total_orders > 0 else 0
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Total Revenue", f"${total_revenue:,.0f}", "+12%")
-    c2.metric("Total Orders", f"{total_orders:,.0f}", "+5%")
+    c2.metric("Total Orders", f"{total_orders:,.0f}" if total_orders else "N/A", "+5%")
     c3.metric("Avg Order Value", f"${avg_order_val:,.2f}", "-2%")
 
 # --- TABS ---
@@ -95,7 +131,9 @@ with tab1:
     
     with col1:
         if not df_revenue.empty:
-            fig = px.line(df_revenue, x="order_date", y="daily_revenue", 
+            date_col = [c for c in df_revenue.columns if 'date' in c.lower() or 'month' in c.lower()][0]
+            y_col = [c for c in df_revenue.columns if 'revenue' in c.lower() or 'sales' in c.lower()][0]
+            fig = px.line(df_revenue, x=date_col, y=y_col, 
                          title="Daily Revenue Trend", markers=True,
                          line_shape="spline")
             fig.update_layout(height=350)
@@ -103,37 +141,36 @@ with tab1:
             
     with col2:
         if not df_category.empty:
-            fig2 = px.pie(df_category, values="sales", names="category", 
-                         title="Sales by Category", hole=0.4)
+            name_col = [c for c in df_category.columns if c.lower() in ['category', 'brand', 'department']][0]
+            val_col = [c for c in df_category.columns if 'sales' in c.lower() or 'revenue' in c.lower()][0]
+            fig2 = px.pie(df_category, values=val_col, names=name_col, 
+                         title="Sales Breakdown", hole=0.4)
             fig2.update_layout(height=350)
             st.plotly_chart(fig2, use_container_width=True)
 
 with tab2:
-    st.subheader("Detailed Revenue Analysis")
-    st.markdown("*(More detailed pivots and breakdown dimensions would go here powered by Cube)*")
+    st.subheader("Detailed Data View")
     if not df_revenue.empty:
         st.dataframe(df_revenue, use_container_width=True)
 
 with tab3:
     st.subheader("💬 Ask a Question (NLQ)")
-    st.info("Ask questions like: 'What was the revenue last week?'")
+    st.info("Ask questions like: 'What was the revenue last week?' or 'Which brand sold the most?'")
     user_query = st.text_input("Your Question:")
     
-    if st.button("Ask Semantic Layer"):
-        with st.spinner("Translating natural language to Cube query..."):
-            time.sleep(1.5) # Simulate processing
+    if st.button("Ask Semantic Layer") and user_query:
+        with st.spinner("Translating natural language to SQL..."):
+            result = call_semantic_api(user_query)
             
-            # Simulated Response
-            st.markdown(f"**Interpreted Query:** `Orders.totalRevenue` filtered by date")
-            
-            st.code("""
-{
-  "measures": ["Orders.totalRevenue"],
-  "timeDimensions": [{
-    "dimension": "Orders.orderDate",
-    "dateRange": "Last 7 days"
-  }]
-}
-            """, language="json")
-            
-            st.success("Result: $42,500")
+            if result:
+                st.markdown(f"**Intent:** {result.get('intent')}")
+                st.markdown(f"**Explanation:** {result.get('explanation')}")
+                
+                with st.expander("Show Generated SQL"):
+                    st.code(result.get("sql"), language="sql")
+                
+                if result.get("data"):
+                    st.success(f"Found {result.get('row_count')} records")
+                    st.dataframe(pd.DataFrame(result.get("data")), use_container_width=True)
+                else:
+                    st.warning("No data returned for this query.")
