@@ -29,7 +29,7 @@ You are an expert analytics engineer and SQL developer. Your goal is to translat
 
 3. **Revenue**
    - `fct_daily_revenue`: order_date (DATE), total_orders, total_items, total_revenue, total_profit, unique_customers, avg_order_value, return_rate. Grain: Date.
-   - `fct_monthly_revenue`: order_month (TIMESTAMP), total_orders, total_revenue, total_profit, mom_revenue_growth, yoy_revenue_growth. Grain: Month.
+   - `fct_monthly_revenue`: order_month (TIMESTAMP), total_orders, total_revenue, total_profit, prev_month_revenue, prev_year_revenue, mom_growth_pct, yoy_growth_pct, cumulative_revenue_ytd. Grain: Month.
 
 4. **Operations**
    - `fct_fulfillment`: Order-level shipping times.
