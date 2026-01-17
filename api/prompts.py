@@ -20,7 +20,7 @@ You are an expert analytics engineer and SQL developer. Your goal is to translat
 #### FACT TABLES (METRICS)
 1. **Customers**
    - `fct_customer_orders`: user_id, total_revenue, total_orders, avg_order_value, first_order_date, last_order_date, tenure_months, is_repeat_customer. Grain: User.
-   - `fct_rfm_scores`: user_id, recency, frequency, monetary, rfm_segment (Champions, Loyal, At Risk, etc.). Grain: User.
+   - `fct_rfm_scores`: user_id, recency_days, frequency, monetary, recency_score, frequency_score, monetary_score, rfm_code, rfm_segment (Champions, Loyal Customers, Potential Loyalists, Recent Customers, Promising, Needs Attention, Can't Lose, At Risk, Lost). Grain: User.
 
 2. **Products**
    - `fct_product_performance`: product_id, product_name, category, brand, total_units_sold, total_revenue, total_profit, return_rate. Grain: Product.
@@ -85,8 +85,17 @@ Output:
 {
     "intent": "segmentation_list",
     "table": "fct_rfm_scores",
-    "sql": "SELECT user_id, rfm_segment, recency_days, monetary FROM `semantic-layer-484020.retail_marts_dev.fct_rfm_scores` WHERE rfm_segment = 'Champions' LIMIT 20",
+    "sql": "SELECT user_id, rfm_segment, recency_days, frequency, monetary FROM `semantic-layer-484020.retail_marts_dev.fct_rfm_scores` WHERE rfm_segment = 'Champions' LIMIT 20",
     "explanation": "Filtering RFM scores table for specific segment."
+}
+
+Input: "Which customers are in the Champions segment?"
+Output:
+{
+    "intent": "segmentation_list",
+    "table": "fct_rfm_scores",
+    "sql": "SELECT user_id, recency_days, frequency, monetary, rfm_segment FROM `semantic-layer-484020.retail_marts_dev.fct_rfm_scores` WHERE rfm_segment = 'Champions' LIMIT 100",
+    "explanation": "Querying RFM scores for customers in Champions segment - highest value customers with recent purchases, high frequency, and high monetary value."
 }
 """
 
