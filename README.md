@@ -1,32 +1,50 @@
 # Retail Semantic Layer
 
-A production-style semantic layer demo using dbt, BigQuery, and Cube — built to demonstrate analytics engineering best practices.
+A production-style AI-powered analytics platform using dbt, BigQuery, Google Gemini, and Streamlit — built to demonstrate modern data stack best practices.
+
+> 📚 **[Complete Architecture Guide](docs/PROJECT_ARCHITECTURE.md)** — Comprehensive documentation covering all components, metrics, data models, and API reference.
 
 ## 🎯 Objective
 
 Build a complete semantic layer on **BigQuery public data** (`thelook_ecommerce`) that showcases:
 
 - **dbt** for data transformation (staging → marts)
-- **Cube** for semantic metrics layer
-- **Streamlit** for dashboards
-- **NLQ API** for natural language queries
+- **Google Gemini** for AI-powered natural language queries
+- **Streamlit** for interactive dashboards
+- **Cube** for semantic metrics layer (optional)
 
 ## 🏗️ Architecture
 
 ```
-BigQuery Public Dataset (thelook_ecommerce)
-            ↓
-       dbt Sources
-            ↓
-     Staging Models (stg_*)     ← Views, 1:1 with source
-            ↓
-     Mart Models (fct_*, dim_*) ← Tables, business logic
-            ↓
-  Semantic Exposure Layer       ← Public-safe views
-            ↓
-     Cube Semantic Layer        ← Metric definitions & Query API
-            ↓
-  Streamlit UI + NLQ API        ← Presentation Layer
+┌─────────────────────────────────────────────────────────────────┐
+│                    DATA WAREHOUSE                                │
+│              BigQuery (thelook_ecommerce)                        │
+│     orders | users | products | events | inventory               │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    TRANSFORMATION (dbt)                          │
+│  ┌─────────┐    ┌──────────────┐    ┌───────────────────────┐   │
+│  │ Staging │ →  │ Intermediate │ →  │   Marts (25+ models)  │   │
+│  │ stg_*   │    │    int_*     │    │   fct_* / dim_*       │   │
+│  └─────────┘    └──────────────┘    └───────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                AI SEMANTIC LAYER (Gemini)                        │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  Natural Language → SQL Translation (Gemini 2.5 Flash)   │   │
+│  │  FastAPI | Vertex AI | BigQuery Client                   │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                  PRESENTATION (Streamlit)                        │
+│     KPI Dashboard | Revenue Charts | NLQ Interface               │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ## 🧠 Why Cube?
@@ -172,8 +190,47 @@ dbt docs serve
 | `retail_marts` | Production (future) |
 | `retail_public_demo` | Reviewer-accessible views |
 
+## 🤖 Natural Language Query (NLQ) API
+
+The NLQ API allows users to ask questions in plain English and get SQL-executed results.
+
+### Example Queries
+
+| Question | What It Does |
+|----------|--------------|
+| "What was our revenue last month?" | Returns monthly revenue from `fct_monthly_revenue` |
+| "Show me customers in the Champions segment" | Filters `fct_rfm_scores` for top customers |
+| "Which products have the highest return rate?" | Queries `fct_product_performance` |
+| "What's our conversion rate by traffic source?" | Analyzes `fct_web_funnel` |
+
+### API Endpoints
+
+```bash
+# Health check
+curl https://semantic-api-5592650460.us-central1.run.app/
+
+# Ask a question
+curl -X POST https://semantic-api-5592650460.us-central1.run.app/ask \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What are the total sales by category?", "execute": true}'
+```
+
+### Technology
+
+- **LLM:** Google Gemini 2.5 Flash (via Vertex AI)
+- **API Framework:** FastAPI
+- **Deployment:** Google Cloud Run
+
+## 📖 Documentation
+
+| Document | Description |
+|----------|-------------|
+| **[Architecture Guide](docs/PROJECT_ARCHITECTURE.md)** | Complete system design, all metrics, data models, API reference |
+| **[dbt Docs](target/)** | Auto-generated dbt documentation (run `dbt docs serve`) |
+
 ## 📚 Resources
 
 - [dbt Documentation](https://docs.getdbt.com/)
 - [BigQuery thelook_ecommerce](https://console.cloud.google.com/marketplace/product/bigquery-public-data/thelook-ecommerce)
+- [Google Vertex AI](https://cloud.google.com/vertex-ai)
 - [Cube.dev](https://cube.dev/)
