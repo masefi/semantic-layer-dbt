@@ -63,6 +63,7 @@ jobs:
 
       - name: Validate Cube models
         run: |
+          pip install pyyaml
           echo "Validating Cube YAML models..."
           for f in cube/model/cubes/*.yaml; do
             echo "  Checking $f"
