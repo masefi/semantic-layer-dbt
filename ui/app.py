@@ -63,8 +63,8 @@ connection_mode = st.sidebar.radio(
 # Store API status in session state
 if "api_status" not in st.session_state:
     st.session_state.api_status = "unknown"
-if "cube_status" not in st.session_state:
-    st.session_state.cube_status = "unknown"
+if "cube_server_status" not in st.session_state:
+    st.session_state.cube_server_status = "unknown"
 if "use_fallback" not in st.session_state:
     st.session_state.use_fallback = False
 
@@ -79,7 +79,7 @@ def check_api_health():
             # Check Cube status from API response
             components = data.get("components", {})
             cube_info = components.get("cube", {})
-            st.session_state.cube_status = cube_info.get("status", "unknown")
+            st.session_state.cube_server_status = cube_info.get("status", "unknown")
             return data
     except:
         pass
@@ -182,7 +182,7 @@ if connection_mode == "Live (Semantic API)":
 if st.sidebar.button("🔄 Refresh Data", help="Clear cached data and fetch fresh results"):
     st.cache_data.clear()
     st.session_state.api_status = "unknown"
-    st.session_state.cube_status = "unknown"
+    st.session_state.cube_server_status = "unknown"
     st.session_state.use_fallback = False
     st.rerun()
 
@@ -244,12 +244,12 @@ def load_data(mode):
         else:
             st.session_state.use_fallback = False
             st.session_state.api_status = "connected"
-        
-        return df_rev, df_cat
+            
+            return df_rev, df_cat
 
 # Load Data
 with st.spinner("🔄 Loading dashboard data..."):
-    df_revenue, df_category = load_data(connection_mode)
+df_revenue, df_category = load_data(connection_mode)
 
 # Show subtle status indicator
 if connection_mode == "Live (Semantic API)" and st.session_state.use_fallback:
@@ -302,7 +302,7 @@ with tab1:
                     line=dict(color="#4F46E5", width=3),
                     marker=dict(size=6)
                 )
-                st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True)
             
     with col2:
         if not df_category.empty:
@@ -319,7 +319,7 @@ with tab1:
                 )
                 fig2.update_layout(height=380)
                 fig2.update_traces(textposition='inside', textinfo='percent+label')
-                st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, use_container_width=True)
 
 with tab2:
     st.subheader("Revenue Data Details")
