@@ -109,6 +109,7 @@ def execute_query(sql: str) -> tuple[List[dict], int]:
     if not bq_client:
         raise Exception("BigQuery client not initialized")
 
+    logger.info(f"Executing SQL: {sql}")
     query_job = bq_client.query(sql)
     results = query_job.result()
     rows = [dict(row) for row in results]
@@ -165,6 +166,7 @@ def ask_question(request: NLQRequest):
             except Exception as e:
                 response.error = f"Query execution failed: {str(e)}"
                 logger.error(f"BigQuery error: {e}")
+                logger.error(f"Failed SQL: {response.sql}")
         
         return response
         

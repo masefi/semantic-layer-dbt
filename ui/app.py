@@ -59,9 +59,15 @@ def call_semantic_api(query: str):
             timeout=30
         )
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+        if data.get("error"):
+            st.warning(f"API Warning for '{query}': {data.get('error')}")
+            if data.get("sql"):
+                with st.expander("Show Failed SQL"):
+                    st.code(data.get("sql"), language="sql")
+        return data
     except Exception as e:
-        st.error(f"API Error: {str(e)}")
+        st.error(f"API Connection Error: {str(e)}")
         return None
 
 # --- MOCK DATA GENERATOR ---
@@ -93,14 +99,16 @@ def load_data(mode):
         with st.spinner("Fetching live performance metrics..."):
             # 1. Trend Data
             trend_resp = call_semantic_api("Show me daily revenue for the last 30 days")
-            df_rev = pd.DataFrame(trend_resp.get("data", [])) if trend_resp else pd.DataFrame()
+            df_rev = pd.DataFrame(trend_resp.get("data", [])) if trend_resp and trend_resp.get("data") else pd.DataFrame()
             
             # 2. Category Data
             cat_resp = call_semantic_api("What are the total sales by category for the last 30 days?")
-            df_cat = pd.DataFrame(cat_resp.get("data", [])) if cat_resp else pd.DataFrame()
+            df_cat = pd.DataFrame(cat_resp.get("data", [])) if cat_resp and cat_resp.get("data") else pd.DataFrame()
             
-            if df_rev.empty or df_cat.empty:
-                st.warning("Could not fetch some live data. Falling back to empty tables.")
+            if df_rev.empty:
+                st.warning("Trend data is empty. Check API logs.")
+            if df_cat.empty:
+                st.warning("Category data is empty. Possible type mismatch in SQL.")
             
             return df_rev, df_cat
 
@@ -110,11 +118,13 @@ df_revenue, df_category = load_data(connection_mode)
 # --- KPI METRICS ---
 if not df_revenue.empty:
     # Handle different column names that might come from NLQ
-    rev_col = [c for c in df_revenue.columns if 'revenue' in c.lower() or 'sales' in c.lower()][0]
-    count_col = [c for c in df_revenue.columns if 'count' in c.lower() or 'orders' in c.lower()]
-    count_col = count_col[0] if count_col else None
-
-    total_revenue = df_revenue[rev_col].sum()
+    rev_cols = [c for c in df_revenue.columns if any(k in c.lower() for k in ['revenue', 'sales', 'amount'])]
+    count_cols = [c for c in df_revenue.columns if any(k in c.lower() for k in ['count', 'order', 'items', 'volume'])]
+    
+    rev_col = rev_cols[0] if rev_cols else None
+    count_col = count_cols[0] if count_cols else None
+    
+    total_revenue = df_revenue[rev_col].sum() if rev_col else 0
     total_orders = df_revenue[count_col].sum() if count_col else 0
     avg_order_val = total_revenue / total_orders if total_orders > 0 else 0
 
