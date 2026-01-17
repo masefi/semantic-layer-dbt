@@ -29,12 +29,17 @@ st.sidebar.header("🔌 Connection Settings")
 connection_mode = st.sidebar.radio(
     "Data Source Mode",
     ["Mock (Demo)", "Live (Semantic API)"],
-    index=0,
+    index=1,  # Default to Live mode
     help="Select 'Mock' to simulate responses or 'Live' to query real data via Gemini NLQ API."
 )
 
 if connection_mode == "Live (Semantic API)":
     st.sidebar.success(f"Connected to: {API_URL}")
+    
+# Cache control button
+if st.sidebar.button("🔄 Refresh Data", help="Clear cached data and fetch fresh results"):
+    st.cache_data.clear()
+    st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.header("🗓️ Filters")
@@ -89,37 +94,39 @@ def get_mock_data():
     return df_revenue, df_category
 
 # --- DATA LOADING ---
-@st.cache_data
+@st.cache_data(ttl=300)  # Cache for 5 minutes max
 def load_data(mode):
     if mode.startswith("Mock"):
         time.sleep(0.5) # Simulate API latency
         return get_mock_data()
     else:
         # Fetch Live Data for Dashboards
-        with st.spinner("Fetching live performance metrics..."):
-            # 1. Trend Data
-            trend_resp = call_semantic_api("Show me daily revenue for the last 30 days")
-            df_rev = pd.DataFrame(trend_resp.get("data", [])) if trend_resp and trend_resp.get("data") else pd.DataFrame()
-            
-            # 2. Category Data
-            cat_resp = call_semantic_api("What are the total sales by category for the last 30 days?")
-            df_cat = pd.DataFrame(cat_resp.get("data", [])) if cat_resp and cat_resp.get("data") else pd.DataFrame()
-            
-            if df_rev.empty:
-                st.warning("Trend data is empty. Check API logs.")
-            if df_cat.empty:
-                st.warning("Category data is empty. Possible type mismatch in SQL.")
-            
-            return df_rev, df_cat
+        # 1. Trend Data
+        trend_resp = call_semantic_api("Show me daily revenue for the last 30 days")
+        df_rev = pd.DataFrame(trend_resp.get("data", [])) if trend_resp and trend_resp.get("data") else pd.DataFrame()
+        
+        # 2. Category Data
+        cat_resp = call_semantic_api("What are the total sales by category for the last 30 days?")
+        df_cat = pd.DataFrame(cat_resp.get("data", [])) if cat_resp and cat_resp.get("data") else pd.DataFrame()
+        
+        return df_rev, df_cat
 
 # Load Data
-df_revenue, df_category = load_data(connection_mode)
+with st.spinner("Loading data..."):
+    df_revenue, df_category = load_data(connection_mode)
+
+# Show data status warnings
+if connection_mode == "Live (Semantic API)":
+    if df_revenue.empty:
+        st.warning("⚠️ Revenue trend data is empty. Click 'Refresh Data' to retry.")
+    if df_category.empty:
+        st.warning("⚠️ Category data is empty. Click 'Refresh Data' to retry.")
 
 # --- KPI METRICS ---
 if not df_revenue.empty:
     # Handle different column names that might come from NLQ
     rev_cols = [c for c in df_revenue.columns if any(k in c.lower() for k in ['revenue', 'sales', 'amount'])]
-    count_cols = [c for c in df_revenue.columns if any(k in c.lower() for k in ['count', 'order', 'items', 'volume'])]
+    count_cols = [c for c in df_revenue.columns if any(k in c.lower() for k in ['count', 'orders', 'items', 'volume'])]
     
     rev_col = rev_cols[0] if rev_cols else None
     count_col = count_cols[0] if count_cols else None
@@ -131,8 +138,10 @@ if not df_revenue.empty:
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Total Revenue", f"${total_revenue:,.0f}", "+12%")
-    c2.metric("Total Orders", f"{total_orders:,.0f}" if total_orders else "N/A", "+5%")
+    c2.metric("Total Orders", f"{int(total_orders):,}" if total_orders else "N/A", "+5%")
     c3.metric("Avg Order Value", f"${avg_order_val:,.2f}", "-2%")
+else:
+    st.info("📊 No data available. Select 'Live' mode and click 'Refresh Data' to load.")
 
 # --- TABS ---
 tab1, tab2, tab3 = st.tabs(["Overview", "Revenue Trends", "Natural Language Query"])
@@ -143,22 +152,28 @@ with tab1:
     
     with col1:
         if not df_revenue.empty:
-            date_col = [c for c in df_revenue.columns if 'date' in c.lower() or 'month' in c.lower()][0]
-            y_col = [c for c in df_revenue.columns if 'revenue' in c.lower() or 'sales' in c.lower()][0]
-            fig = px.line(df_revenue, x=date_col, y=y_col, 
-                         title="Daily Revenue Trend", markers=True,
-                         line_shape="spline")
-            fig.update_layout(height=350)
-            st.plotly_chart(fig, use_container_width=True)
+            date_cols = [c for c in df_revenue.columns if 'date' in c.lower() or 'month' in c.lower()]
+            y_cols = [c for c in df_revenue.columns if 'revenue' in c.lower() or 'sales' in c.lower()]
+            if date_cols and y_cols:
+                fig = px.line(df_revenue, x=date_cols[0], y=y_cols[0], 
+                             title="Daily Revenue Trend", markers=True,
+                             line_shape="spline")
+                fig.update_layout(height=350)
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("Could not identify date/revenue columns in data.")
             
     with col2:
         if not df_category.empty:
-            name_col = [c for c in df_category.columns if c.lower() in ['category', 'brand', 'department']][0]
-            val_col = [c for c in df_category.columns if 'sales' in c.lower() or 'revenue' in c.lower()][0]
-            fig2 = px.pie(df_category, values=val_col, names=name_col, 
-                         title="Sales Breakdown", hole=0.4)
-            fig2.update_layout(height=350)
-            st.plotly_chart(fig2, use_container_width=True)
+            name_cols = [c for c in df_category.columns if c.lower() in ['category', 'brand', 'department']]
+            val_cols = [c for c in df_category.columns if 'sales' in c.lower() or 'revenue' in c.lower()]
+            if name_cols and val_cols:
+                fig2 = px.pie(df_category, values=val_cols[0], names=name_cols[0], 
+                             title="Sales Breakdown", hole=0.4)
+                fig2.update_layout(height=350)
+                st.plotly_chart(fig2, use_container_width=True)
+            else:
+                st.warning("Could not identify category/sales columns in data.")
 
 with tab2:
     st.subheader("Detailed Data View")
