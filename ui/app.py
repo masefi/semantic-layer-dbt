@@ -124,8 +124,9 @@ if not df_revenue.empty:
     rev_col = rev_cols[0] if rev_cols else None
     count_col = count_cols[0] if count_cols else None
     
-    total_revenue = df_revenue[rev_col].sum() if rev_col else 0
-    total_orders = df_revenue[count_col].sum() if count_col else 0
+    # Safe numeric casting to avoid TypeError
+    total_revenue = pd.to_numeric(df_revenue[rev_col], errors='coerce').sum() if rev_col else 0
+    total_orders = pd.to_numeric(df_revenue[count_col], errors='coerce').sum() if count_col else 0
     avg_order_val = total_revenue / total_orders if total_orders > 0 else 0
 
     c1, c2, c3 = st.columns(3)

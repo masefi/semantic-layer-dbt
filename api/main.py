@@ -22,7 +22,7 @@ def get_clients():
     logger.info(f"Initializing Vertex AI with project: {project_id}")
     try:
         vertexai.init(project=project_id, location="us-central1")
-        # Using a stable, supported version
+        # Back to flash 2.5 as it was at least found
         model_name = "gemini-2.5-flash"
         logger.info(f"Using model: {model_name}")
         llm = GenerativeModel(model_name) 
@@ -66,37 +66,49 @@ def generate_sql(user_query: str) -> dict:
     
     User question: {user_query}
     
-    Respond with a JSON object only, no markdown formatting:
+    Respond with a VALID JSON object only.
+    Example structure:
     {{
-        "intent": "brief description of what user wants to know",
-        "table": "primary_table_name",
-        "sql": "SELECT ... FROM `semantic-layer-484020.{BQ_DATASET}.table_name` ...",
-        "explanation": "brief explanation of query logic"
+        "intent": "analyze_something",
+        "table": "fct_something",
+        "sql": "SELECT ...",
+        "explanation": "..."
     }}
+    
+    IMPORTANT: Provide the FULL SQL query. Do not truncate.
     """
     
     try:
         response = llm_client.generate_content(
             prompt,
             generation_config=GenerationConfig(
-                temperature=0.1,  # Low temperature for consistent SQL
-                max_output_tokens=2048,
-                response_mime_type="application/json"
+                temperature=0.1,
+                max_output_tokens=2048
             )
         )
         
         # Parse JSON from response
         result_text = response.text.strip()
-        # Handle potential markdown code blocks if the model ignores the mime type hints
-        if result_text.startswith("```"):
-            result_text = result_text.split("```")[1]
-            if result_text.startswith("json"):
-                result_text = result_text[4:]
         
-        return json.loads(result_text)
+        # Robust parsing: model sometimes wraps in code blocks or adds prefix text
+        if "{" in result_text and "}" in result_text:
+            start_index = result_text.find("{")
+            end_index = result_text.rfind("}") + 1
+            result_text = result_text[start_index:end_index]
+        
+        try:
+            return json.loads(result_text)
+        except json.JSONDecodeError as je:
+            logger.error(f"JSON Parse Error: {je}. Raw text: {result_text}")
+            return {
+                "intent": "error",
+                "table": "unknown",
+                "sql": "",
+                "explanation": f"Failed to parse LLM response: {str(je)}"
+            }
+
     except Exception as e:
         logger.error(f"LLM Generation failed: {e}")
-        # Fallback for demo/testing if LLM fails (e.g. auth issues locally)
         return {
             "intent": "error",
             "table": "unknown",
