@@ -3,3 +3,6 @@ uvicorn
 pydantic
 google-cloud-bigquery
 google-cloud-aiplatform>=1.38.0
+# Cube client dependencies
+requests
+PyJWT>=2.0.0

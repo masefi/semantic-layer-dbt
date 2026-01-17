@@ -18,10 +18,8 @@ st.set_page_config(
 API_URL = os.environ.get("API_URL", "https://semantic-api-5592650460.us-central1.run.app")
 
 # --- REALISTIC FALLBACK DATA ---
-# This data mirrors real API responses for seamless demo experience
 def get_fallback_data():
     """Realistic fallback data that matches actual BigQuery data patterns."""
-    # Daily revenue (last 30 days pattern)
     dates = pd.date_range(end=datetime.now().date(), periods=30)
     base_revenue = 18000
     df_revenue = pd.DataFrame({
@@ -32,7 +30,6 @@ def get_fallback_data():
         "avg_order_value": [85 + (i % 10) * 2 for i in range(30)]
     })
     
-    # Category breakdown (matches real categories)
     df_category = pd.DataFrame({
         "category": [
             "Outerwear & Coats", "Jeans", "Sweaters", "Suits & Sport Coats",
@@ -51,7 +48,7 @@ def get_fallback_data():
 # --- HEADER ---
 st.title("🛍️ Retail Semantic Layer Demo")
 st.markdown("""
-**Architecture:** Data Warehouse (BigQuery) → Transformation (dbt) → Semantic Layer (Gemini) → UI (Streamlit)
+**Architecture:** Data Warehouse (BigQuery) → Transformation (dbt) → Semantic Layer (Cube + Gemini) → UI (Streamlit)
 """)
 
 # --- SIDEBAR CONFIG ---
@@ -60,41 +57,47 @@ connection_mode = st.sidebar.radio(
     "Data Source Mode",
     ["Live (Semantic API)", "Demo (Sample Data)"],
     index=0,
-    help="'Live' queries real data via Gemini AI. 'Demo' uses sample data for offline presentations."
+    help="'Live' queries real data via Cube & Gemini. 'Demo' uses sample data for offline presentations."
 )
 
 # Store API status in session state
 if "api_status" not in st.session_state:
     st.session_state.api_status = "unknown"
+if "cube_status" not in st.session_state:
+    st.session_state.cube_status = "unknown"
 if "use_fallback" not in st.session_state:
     st.session_state.use_fallback = False
 
-if connection_mode == "Live (Semantic API)":
-    if st.session_state.api_status == "connected":
-        st.sidebar.success("✅ API Connected")
-    elif st.session_state.use_fallback:
-        st.sidebar.warning("⚡ Using cached data (API warming up)")
-    else:
-        st.sidebar.info(f"🔗 {API_URL}")
-    
-# Cache control button
-if st.sidebar.button("🔄 Refresh Data", help="Clear cached data and fetch fresh results"):
-    st.cache_data.clear()
-    st.session_state.api_status = "unknown"
-    st.session_state.use_fallback = False
-    st.rerun()
+# --- API HELPERS ---
+def check_api_health():
+    """Check API health and component status."""
+    try:
+        response = requests.get(f"{API_URL}/", timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            st.session_state.api_status = "connected"
+            # Check Cube status from API response
+            components = data.get("components", {})
+            cube_info = components.get("cube", {})
+            st.session_state.cube_status = cube_info.get("status", "unknown")
+            return data
+    except:
+        pass
+    st.session_state.api_status = "disconnected"
+    return None
 
-st.sidebar.markdown("---")
-st.sidebar.header("🗓️ Filters")
-date_range = st.sidebar.date_input(
-    "Date Range",
-    value=(datetime.now() - timedelta(days=30), datetime.now())
-)
+def call_cube_metrics(endpoint: str):
+    """Call Cube metric endpoints."""
+    try:
+        response = requests.get(f"{API_URL}/cube/metrics/{endpoint}", timeout=30)
+        if response.status_code == 200:
+            return response.json()
+    except Exception as e:
+        st.warning(f"Cube endpoint error: {e}")
+    return None
 
-# --- API HELPERS WITH RETRY ---
 def call_semantic_api_with_retry(query: str, max_retries: int = 2, show_status: bool = True):
     """Call the NLQ API with retry logic and graceful fallback."""
-    
     for attempt in range(max_retries):
         try:
             if show_status and attempt > 0:
@@ -103,15 +106,14 @@ def call_semantic_api_with_retry(query: str, max_retries: int = 2, show_status: 
             response = requests.post(
                 f"{API_URL}/ask",
                 json={"query": query, "execute": True},
-                timeout=45  # Increased timeout for cold starts
+                timeout=45
             )
             response.raise_for_status()
             data = response.json()
             
-            # Check for LLM errors
             if data.get("error") == "LLM Generation Failed":
                 if attempt < max_retries - 1:
-                    time.sleep(2)  # Wait before retry
+                    time.sleep(2)
                     continue
                 return None
             
@@ -123,7 +125,7 @@ def call_semantic_api_with_retry(query: str, max_retries: int = 2, show_status: 
                 time.sleep(1)
                 continue
             return None
-        except Exception as e:
+        except Exception:
             if attempt < max_retries - 1:
                 time.sleep(1)
                 continue
@@ -154,28 +156,75 @@ def call_semantic_api(query: str):
         st.error(f"API Error: {str(e)}")
         return None
 
+# Show connection status in sidebar
+if connection_mode == "Live (Semantic API)":
+    with st.sidebar:
+        health = check_api_health()
+        if health:
+            st.success("✅ API Connected")
+            
+            # Show component status
+            components = health.get("components", {})
+            with st.expander("🔧 Component Status", expanded=False):
+                gemini = components.get("gemini", {})
+                bq = components.get("bigquery", {})
+                cube = components.get("cube", {})
+                
+                st.markdown(f"**Gemini:** {'🟢' if gemini.get('status') == 'connected' else '🔴'} {gemini.get('model', 'N/A')}")
+                st.markdown(f"**BigQuery:** {'🟢' if bq.get('status') == 'connected' else '🔴'} {bq.get('dataset', 'N/A')}")
+                st.markdown(f"**Cube:** {'🟢' if cube.get('status') == 'connected' else '🟡'} {cube.get('status', 'N/A')}")
+        elif st.session_state.use_fallback:
+            st.warning("⚡ Using cached data")
+        else:
+            st.info(f"🔗 {API_URL}")
+    
+# Cache control button
+if st.sidebar.button("🔄 Refresh Data", help="Clear cached data and fetch fresh results"):
+    st.cache_data.clear()
+    st.session_state.api_status = "unknown"
+    st.session_state.cube_status = "unknown"
+    st.session_state.use_fallback = False
+    st.rerun()
+
+st.sidebar.markdown("---")
+st.sidebar.header("🗓️ Filters")
+date_range = st.sidebar.date_input(
+    "Date Range",
+    value=(datetime.now() - timedelta(days=30), datetime.now())
+)
+
 # --- DATA LOADING ---
 @st.cache_data(ttl=300, show_spinner=False)
 def load_data(mode):
     if mode.startswith("Demo"):
         return get_fallback_data()
     else:
-        # Fetch Live Data with automatic fallback
         df_rev = pd.DataFrame()
         df_cat = pd.DataFrame()
-        api_success = False
         
-        # Try to fetch revenue data
-        trend_resp = call_semantic_api_with_retry(
-            "Show me daily revenue for the last 30 days", 
-            max_retries=2,
-            show_status=False
-        )
-        if trend_resp and trend_resp.get("data"):
-            df_rev = pd.DataFrame(trend_resp.get("data", []))
-            api_success = True
+        # Try Cube first for daily revenue (if available)
+        cube_revenue = call_cube_metrics("revenue/daily")
+        if cube_revenue and cube_revenue.get("data"):
+            df_rev = pd.DataFrame(cube_revenue.get("data", []))
+            # Rename Cube columns to match expected format
+            col_map = {
+                "revenue_daily.date": "order_date",
+                "revenue_daily.total_revenue": "total_revenue",
+                "revenue_daily.total_orders": "total_orders"
+            }
+            df_rev = df_rev.rename(columns=col_map)
         
-        # Try to fetch category data
+        # Fallback to Gemini NLQ if Cube unavailable
+        if df_rev.empty:
+            trend_resp = call_semantic_api_with_retry(
+                "Show me daily revenue for the last 30 days", 
+                max_retries=2,
+                show_status=False
+            )
+            if trend_resp and trend_resp.get("data"):
+                df_rev = pd.DataFrame(trend_resp.get("data", []))
+        
+        # Category data via Gemini (no Cube endpoint for this)
         cat_resp = call_semantic_api_with_retry(
             "What are the total sales by category for the last 30 days?",
             max_retries=2,
@@ -183,9 +232,8 @@ def load_data(mode):
         )
         if cat_resp and cat_resp.get("data"):
             df_cat = pd.DataFrame(cat_resp.get("data", []))
-            api_success = True
         
-        # Graceful fallback if API fails
+        # Graceful fallback if APIs fail
         if df_rev.empty or df_cat.empty:
             st.session_state.use_fallback = True
             fallback_rev, fallback_cat = get_fallback_data()
@@ -203,20 +251,18 @@ def load_data(mode):
 with st.spinner("🔄 Loading dashboard data..."):
     df_revenue, df_category = load_data(connection_mode)
 
-# Show subtle status indicator (not disruptive warnings)
+# Show subtle status indicator
 if connection_mode == "Live (Semantic API)" and st.session_state.use_fallback:
     st.caption("💡 *Showing cached data while API warms up. Click 'Refresh Data' to retry live query.*")
 
 # --- KPI METRICS ---
 if not df_revenue.empty:
-    # Handle different column names that might come from NLQ
     rev_cols = [c for c in df_revenue.columns if any(k in c.lower() for k in ['revenue', 'sales', 'amount'])]
     count_cols = [c for c in df_revenue.columns if any(k in c.lower() for k in ['count', 'orders', 'items', 'volume'])]
     
     rev_col = rev_cols[0] if rev_cols else None
     count_col = count_cols[0] if count_cols else None
     
-    # Safe numeric casting to avoid TypeError
     total_revenue = pd.to_numeric(df_revenue[rev_col], errors='coerce').sum() if rev_col else 0
     total_orders = pd.to_numeric(df_revenue[count_col], errors='coerce').sum() if count_col else 0
     avg_order_val = total_revenue / total_orders if total_orders > 0 else 0
@@ -227,7 +273,7 @@ if not df_revenue.empty:
     c3.metric("Avg Order Value", f"${avg_order_val:,.2f}", "-2%")
 
 # --- TABS ---
-tab1, tab2, tab3 = st.tabs(["📊 Overview", "📈 Revenue Trends", "💬 Natural Language Query"])
+tab1, tab2, tab3, tab4 = st.tabs(["📊 Overview", "📈 Revenue Trends", "🧊 Cube Metrics", "💬 Natural Language Query"])
 
 with tab1:
     st.subheader("Sales Overview")
@@ -263,7 +309,6 @@ with tab1:
             name_cols = [c for c in df_category.columns if c.lower() in ['category', 'brand', 'department']]
             val_cols = [c for c in df_category.columns if 'sales' in c.lower() or 'revenue' in c.lower()]
             if name_cols and val_cols:
-                # Take top 8 categories for cleaner visualization
                 df_top = df_category.nlargest(8, val_cols[0])
                 fig2 = px.pie(
                     df_top, 
@@ -279,7 +324,6 @@ with tab1:
 with tab2:
     st.subheader("Revenue Data Details")
     if not df_revenue.empty:
-        # Summary stats
         col1, col2, col3, col4 = st.columns(4)
         rev_col = [c for c in df_revenue.columns if 'revenue' in c.lower()][0] if [c for c in df_revenue.columns if 'revenue' in c.lower()] else None
         if rev_col:
@@ -292,12 +336,100 @@ with tab2:
         st.dataframe(df_revenue, use_container_width=True, hide_index=True)
 
 with tab3:
-    st.subheader("💬 Ask a Question")
+    st.subheader("🧊 Cube Metrics API")
     st.markdown("""
-    Ask questions in plain English about your retail data. The AI will translate your question to SQL and return results.
+    Query pre-defined metrics directly from Cube's semantic layer. 
+    These endpoints provide governed, cached metrics with consistent definitions.
     """)
     
-    # Example questions
+    if connection_mode == "Demo (Sample Data)":
+        st.info("Switch to 'Live (Semantic API)' mode to query Cube metrics.")
+    else:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("### 📦 Order Metrics")
+            if st.button("Fetch Order Summary", key="cube_orders"):
+                with st.spinner("Querying Cube..."):
+                    result = call_cube_metrics("orders")
+                    if result and result.get("data"):
+                        st.json(result.get("data"))
+                    else:
+                        st.warning("Cube not available. Make sure Cube server is running.")
+            
+            st.markdown("### 📊 Orders by Status")
+            if st.button("Fetch Orders by Status", key="cube_status"):
+                with st.spinner("Querying Cube..."):
+                    result = call_cube_metrics("orders/by-status")
+                    if result and result.get("data"):
+                        df = pd.DataFrame(result.get("data"))
+                        st.dataframe(df, hide_index=True)
+                    else:
+                        st.warning("Cube not available.")
+        
+        with col2:
+            st.markdown("### 👥 User Metrics")
+            if st.button("Fetch User Summary", key="cube_users"):
+                with st.spinner("Querying Cube..."):
+                    result = call_cube_metrics("users")
+                    if result and result.get("data"):
+                        st.json(result.get("data"))
+                    else:
+                        st.warning("Cube not available.")
+            
+            st.markdown("### 🌍 Revenue by Country")
+            if st.button("Fetch Revenue by Country", key="cube_geo"):
+                with st.spinner("Querying Cube..."):
+                    result = call_cube_metrics("revenue/by-country")
+                    if result and result.get("data"):
+                        df = pd.DataFrame(result.get("data"))
+                        st.dataframe(df, hide_index=True)
+                    else:
+                        st.warning("Cube not available.")
+        
+        st.markdown("---")
+        st.markdown("### 🔧 Custom Cube Query")
+        st.caption("Advanced: Execute a custom Cube query")
+        
+        with st.expander("Build Custom Query"):
+            measures = st.multiselect(
+                "Measures",
+                ["orders.count", "orders.total_revenue", "orders.avg_order_value", 
+                 "users.count", "revenue_daily.total_revenue"],
+                default=["orders.count", "orders.total_revenue"]
+            )
+            dimensions = st.multiselect(
+                "Dimensions (optional)",
+                ["orders.status", "orders.country", "users.country"]
+            )
+            
+            if st.button("Execute Cube Query", type="primary"):
+                with st.spinner("Executing Cube query..."):
+                    try:
+                        response = requests.post(
+                            f"{API_URL}/cube/query",
+                            json={
+                                "measures": measures,
+                                "dimensions": dimensions if dimensions else None,
+                                "limit": 50
+                            },
+                            timeout=30
+                        )
+                        if response.status_code == 200:
+                            result = response.json()
+                            st.success(f"✅ Found {result.get('row_count', 0)} rows")
+                            st.dataframe(pd.DataFrame(result.get("data", [])), hide_index=True)
+                        else:
+                            st.error(f"Cube query failed: {response.text}")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+
+with tab4:
+    st.subheader("💬 Ask a Question (Gemini NLQ)")
+    st.markdown("""
+    Ask questions in plain English. Gemini AI translates your question to SQL and executes it against BigQuery.
+    """)
+    
     with st.expander("💡 Example Questions"):
         st.markdown("""
         - "What was our revenue last month?"
@@ -314,12 +446,13 @@ with tab3:
             result = call_semantic_api(user_query)
             
             if result:
-                # Show metadata
-                col1, col2 = st.columns(2)
+                col1, col2, col3 = st.columns(3)
                 with col1:
                     st.markdown(f"**🎯 Intent:** `{result.get('intent', 'N/A')}`")
                 with col2:
                     st.markdown(f"**📊 Table:** `{result.get('table_used', 'N/A')}`")
+                with col3:
+                    st.markdown(f"**🔌 Source:** `{result.get('source', 'bigquery')}`")
                 
                 st.markdown(f"**💡 Explanation:** {result.get('explanation', 'N/A')}")
                 

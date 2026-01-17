@@ -1,2 +1,27 @@
+# Cube Configuration for Retail Semantic Layer
+# Docs: https://cube.dev/docs/reference/configuration/config
+
 projectName: retail_semantic_layer
+
+# Database connection
 dbType: bigquery
+
+# Environment variables for BigQuery (set in .env or docker-compose)
+# CUBEJS_DB_BQ_PROJECT_ID: semantic-layer-484020
+# CUBEJS_DB_BQ_KEY_FILE: /path/to/service-account.json (or use GOOGLE_APPLICATION_CREDENTIALS)
+
+# API Configuration
+apiSecret: ${CUBEJS_API_SECRET}
+
+# Enable REST API
+http:
+  cors: true
+
+# Caching
+cacheAndQueueDriver: memory
+
+# Telemetry
+telemetry: false
+
+# Schema path
+schemaPath: model

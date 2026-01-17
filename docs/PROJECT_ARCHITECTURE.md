@@ -12,7 +12,7 @@
 4. [Component Deep Dive](#component-deep-dive)
    - [Data Warehouse (BigQuery)](#1-data-warehouse-bigquery)
    - [Transformation Layer (dbt)](#2-transformation-layer-dbt)
-   - [AI Semantic Layer (Gemini)](#3-ai-semantic-layer-gemini)
+   - [Semantic Layer (Cube + Gemini)](#3-semantic-layer-cube--gemini)
    - [Presentation Layer (Streamlit)](#4-presentation-layer-streamlit)
 5. [Data Models Catalog](#data-models-catalog)
 6. [Metrics Dictionary](#metrics-dictionary)
@@ -29,7 +29,7 @@ The **Retail Semantic Layer** is a complete, production-style analytics platform
 
 - **Raw Data** lives in a cloud data warehouse (BigQuery)
 - **Transformations** are managed as code (dbt)
-- **Semantic Understanding** is powered by AI (Google Gemini)
+- **Semantic Layer** combines metric governance (Cube) with AI-powered NLQ (Gemini)
 - **Insights** are delivered through intuitive interfaces (Streamlit)
 
 ### Key Capabilities
@@ -55,10 +55,11 @@ The **Retail Semantic Layer** is a complete, production-style analytics platform
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         SEMANTIC LAYER                              │
+│                    SEMANTIC LAYER (Cube + Gemini)                   │
 │  ┌─────────────────────────────────────────────────────────────┐   │
-│  │           FastAPI + Google Gemini 2.5 Flash                  │   │
-│  │  • NLQ-to-SQL Translation  • Query Execution  • Validation   │   │
+│  │  Cube: Metric definitions, governance, caching               │   │
+│  │  Gemini 2.5 Flash: NLQ-to-SQL translation via Vertex AI      │   │
+│  │  FastAPI: Query execution and validation                     │   │
 │  └─────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────┘
                                     │
@@ -336,11 +337,23 @@ See [Data Models Catalog](#data-models-catalog) for complete documentation.
 
 ---
 
-### 3. AI Semantic Layer (Gemini)
+### 3. Semantic Layer (Cube + Gemini)
 
 #### Overview
 
-The semantic layer uses **Google Gemini 2.5 Flash** via Vertex AI to translate natural language questions into executable SQL queries.
+The semantic layer combines two powerful technologies:
+
+| Component | Role | Responsibility |
+|-----------|------|----------------|
+| **Cube** | Metrics Layer | Defines business metrics, provides governance, caching, and a consistent semantic API |
+| **Gemini** | AI Layer | Translates natural language questions into executable SQL queries |
+
+**Cube** (`cube/model/cubes/`) defines reusable metric definitions:
+- `orders.yaml` - Order metrics (count, revenue, AOV)
+- `revenue.yaml` - Revenue aggregations (daily, monthly)
+- `users.yaml` - Customer metrics
+
+**Gemini 2.5 Flash** (via Vertex AI) powers the natural language interface, translating questions like *"What was our revenue last month?"* into optimized SQL.
 
 #### Architecture
 

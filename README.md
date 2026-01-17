@@ -1,6 +1,6 @@
 # Retail Semantic Layer
 
-A production-style AI-powered analytics platform using dbt, BigQuery, Google Gemini, and Streamlit — built to demonstrate modern data stack best practices.
+A production-style AI-powered analytics platform using dbt, BigQuery, Cube, Google Gemini, and Streamlit — built to demonstrate modern data stack best practices.
 
 > 📚 **[Complete Architecture Guide](docs/PROJECT_ARCHITECTURE.md)** — Comprehensive documentation covering all components, metrics, data models, and API reference.
 
@@ -9,9 +9,9 @@ A production-style AI-powered analytics platform using dbt, BigQuery, Google Gem
 Build a complete semantic layer on **BigQuery public data** (`thelook_ecommerce`) that showcases:
 
 - **dbt** for data transformation (staging → marts)
+- **Cube** for semantic metrics definitions and governance
 - **Google Gemini** for AI-powered natural language queries
 - **Streamlit** for interactive dashboards
-- **Cube** for semantic metrics layer (optional)
 
 ## 🏗️ Architecture
 
@@ -33,10 +33,10 @@ Build a complete semantic layer on **BigQuery public data** (`thelook_ecommerce`
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                AI SEMANTIC LAYER (Gemini)                        │
+│                SEMANTIC LAYER (Cube + Gemini)                    │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │  Natural Language → SQL Translation (Gemini 2.5 Flash)   │   │
-│  │  FastAPI | Vertex AI | BigQuery Client                   │   │
+│  │  Cube: Metric definitions, governance, caching           │   │
+│  │  Gemini: Natural Language → SQL (via Vertex AI)          │   │
 │  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
                               │

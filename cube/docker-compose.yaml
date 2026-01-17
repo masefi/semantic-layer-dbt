@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  cube:
+    image: cubejs/cube:latest
+    container_name: cube-semantic-layer
+    ports:
+      - "4000:4000"      # REST API
+      - "15432:15432"    # SQL API (PostgreSQL protocol)
+    environment:
+      # BigQuery Configuration
+      CUBEJS_DB_TYPE: bigquery
+      CUBEJS_DB_BQ_PROJECT_ID: semantic-layer-484020
+      # Use Application Default Credentials (mount gcloud config)
+      # Or set CUBEJS_DB_BQ_KEY_FILE for service account
+      
+      # API Configuration
+      CUBEJS_API_SECRET: ${CUBEJS_API_SECRET:-retail-semantic-layer-secret-key-change-me}
+      CUBEJS_DEV_MODE: "true"
+      CUBEJS_EXTERNAL_DEFAULT: "true"
+      
+      # Enable all APIs
+      CUBEJS_PG_SQL_PORT: 15432
+      
+      # Caching
+      CUBEJS_CACHE_AND_QUEUE_DRIVER: memory
+      
+      # Logging
+      CUBEJS_LOG_LEVEL: info
+      
+    volumes:
+      # Mount the cube model directory
+      - ./model:/cube/conf/model:ro
+      - ./cube.yaml:/cube/conf/cube.yaml:ro
+      # Mount gcloud credentials for BigQuery access
+      - ~/.config/gcloud:/root/.config/gcloud:ro
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/readyz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Optional: Redis for production caching
+  # redis:
+  #   image: redis:7-alpine
+  #   ports:
+  #     - "6379:6379"
