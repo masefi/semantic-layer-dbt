@@ -249,7 +249,7 @@ def load_data(mode):
 
 # Load Data
 with st.spinner("🔄 Loading dashboard data..."):
-df_revenue, df_category = load_data(connection_mode)
+    df_revenue, df_category = load_data(connection_mode)
 
 # Show subtle status indicator
 if connection_mode == "Live (Semantic API)" and st.session_state.use_fallback:
