@@ -244,8 +244,8 @@ def load_data(mode):
         else:
             st.session_state.use_fallback = False
             st.session_state.api_status = "connected"
-            
-            return df_rev, df_cat
+        
+        return df_rev, df_cat
 
 # Load Data
 with st.spinner("🔄 Loading dashboard data..."):
