@@ -425,42 +425,81 @@ with tab3:
                         st.error(f"Error: {e}")
 
 with tab4:
-    st.subheader("💬 Ask a Question (Gemini NLQ)")
+    st.subheader("💬 Smart NLQ - Ask Anything")
     st.markdown("""
-    Ask questions in plain English. Gemini AI translates your question to SQL and executes it against BigQuery.
+    Ask questions in plain English. The AI intelligently routes your query:
+    - **🧊 Cube Path** → For known metrics (revenue, orders, users) - *cached & governed*
+    - **🔧 BigQuery Path** → For complex/ad-hoc queries - *flexible & powerful*
     """)
     
     with st.expander("💡 Example Questions"):
-        st.markdown("""
-        - "What was our revenue last month?"
-        - "Show me the top 10 products by revenue"
-        - "Which customers are in the Champions segment?"
-        - "What's our return rate by category?"
-        - "Show me monthly revenue growth"
-        """)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("""
+            **🧊 Routes to Cube (cached):**
+            - "What is our total revenue?"
+            - "Show me daily revenue for the last 30 days"
+            - "What is revenue by country?"
+            - "How many orders do we have?"
+            """)
+        with col2:
+            st.markdown("""
+            **🔧 Routes to BigQuery (ad-hoc):**
+            - "Which customers are in the Champions segment?"
+            - "Show me top 10 products by return rate"
+            - "What's the monthly revenue growth?"
+            - "List all brands with over $10k in sales"
+            """)
     
-    user_query = st.text_input("Your Question:", placeholder="e.g., What are the top selling brands?")
+    user_query = st.text_input("Your Question:", placeholder="e.g., What is our total revenue by country?")
     
     if st.button("🔍 Ask Semantic Layer", type="primary") and user_query:
-        with st.spinner("🤖 Translating to SQL and executing..."):
+        with st.spinner("🤖 Analyzing query and routing..."):
             result = call_semantic_api(user_query)
             
             if result:
-                col1, col2, col3 = st.columns(3)
+                # Route indicator with color coding
+                route = result.get('route', 'bigquery')
+                source = result.get('source', 'bigquery')
+                
+                if route == 'cube':
+                    route_badge = "🧊 **CUBE** (Cached & Governed)"
+                    route_color = "green"
+                else:
+                    route_badge = "🔧 **BigQuery** (Ad-hoc SQL)"
+                    route_color = "blue"
+                
+                # Show execution source if different from planned route
+                if source != route and 'failed' not in source:
+                    source_note = f" → Executed via: `{source}`"
+                elif 'failed' in source:
+                    source_note = f" ⚠️ Fallback needed"
+                else:
+                    source_note = ""
+                
+                st.markdown(f"### Route: {route_badge}{source_note}")
+                
+                col1, col2 = st.columns(2)
                 with col1:
                     st.markdown(f"**🎯 Intent:** `{result.get('intent', 'N/A')}`")
                 with col2:
-                    st.markdown(f"**📊 Table:** `{result.get('table_used', 'N/A')}`")
-                with col3:
-                    st.markdown(f"**🔌 Source:** `{result.get('source', 'bigquery')}`")
+                    if route == 'bigquery' and result.get('table_used'):
+                        st.markdown(f"**📊 Table:** `{result.get('table_used')}`")
+                    elif route == 'cube':
+                        st.markdown(f"**📊 Cube:** Orders/Revenue/Users")
                 
                 st.markdown(f"**💡 Explanation:** {result.get('explanation', 'N/A')}")
                 
-                with st.expander("🔧 Generated SQL", expanded=False):
-                    st.code(result.get("sql", ""), language="sql")
+                # Show appropriate query details
+                if route == 'cube' and result.get('cube_query'):
+                    with st.expander("🧊 Cube Query", expanded=False):
+                        st.json(result.get("cube_query"))
+                elif result.get('sql'):
+                    with st.expander("🔧 Generated SQL", expanded=False):
+                        st.code(result.get("sql", ""), language="sql")
                 
                 if result.get("data"):
-                    st.success(f"✅ Found {result.get('row_count', 0)} records")
+                    st.success(f"✅ Found {result.get('row_count', 0)} records via {source.upper()}")
                     st.dataframe(pd.DataFrame(result.get("data")), use_container_width=True, hide_index=True)
                 elif not result.get("error"):
                     st.info("Query executed but returned no results.")

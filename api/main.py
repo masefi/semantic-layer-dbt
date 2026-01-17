@@ -74,13 +74,15 @@ class NLQRequest(BaseModel):
 class NLQResponse(BaseModel):
     original_query: str
     intent: str
-    table_used: str
-    sql: str
+    route: str = "bigquery"  # "cube" or "bigquery"
+    table_used: Optional[str] = None
+    sql: Optional[str] = None
+    cube_query: Optional[dict] = None
     explanation: str
     data: Optional[List[dict]] = None
     row_count: Optional[int] = None
     error: Optional[str] = None
-    source: str = "bigquery"  # "bigquery" or "cube"
+    source: str = "bigquery"  # actual execution source
 
 class CubeQueryRequest(BaseModel):
     measures: List[str]
@@ -210,37 +212,74 @@ def get_schema():
 
 @app.post("/ask", response_model=NLQResponse)
 def ask_question(request: NLQRequest):
-    """Translate natural language to SQL and optionally execute."""
+    """
+    Translate natural language to query and execute via smart routing.
+    Routes to Cube for known metrics, BigQuery for complex/ad-hoc queries.
+    """
     try:
         llm_result = generate_sql(request.query)
         
         if llm_result.get("intent") == "error":
-             return NLQResponse(
+            return NLQResponse(
                 original_query=request.query,
                 intent="error",
-                table_used="",
-                sql="",
-                explanation=llm_result.get("explanation"),
+                route="error",
+                explanation=llm_result.get("explanation", ""),
                 error="LLM Generation Failed",
                 source="gemini"
             )
 
+        route = llm_result.get("route", "bigquery")
+        
         response = NLQResponse(
             original_query=request.query,
             intent=llm_result.get("intent", ""),
-            table_used=llm_result.get("table", ""),
-            sql=llm_result.get("sql", ""),
+            route=route,
+            table_used=llm_result.get("table"),
+            sql=llm_result.get("sql"),
+            cube_query=llm_result.get("cube_query"),
             explanation=llm_result.get("explanation", ""),
-            source="bigquery"
+            source=route
         )
         
-        if request.execute and response.sql and "SELECT" in response.sql.upper():
+        if not request.execute:
+            return response
+        
+        # Smart routing: Execute via Cube or BigQuery
+        if route == "cube" and CUBE_AVAILABLE and response.cube_query:
+            try:
+                cube_q = response.cube_query
+                result = query_cube(
+                    measures=cube_q.get("measures", []),
+                    dimensions=cube_q.get("dimensions", []),
+                    filters=cube_q.get("filters", []),
+                    time_dimensions=cube_q.get("timeDimensions", []),
+                    limit=100
+                )
+                if result and result.get("data"):
+                    response.data = result["data"][:100]
+                    response.row_count = len(result["data"])
+                    response.source = "cube"
+                    logger.info(f"✅ Cube query successful: {response.row_count} rows")
+                else:
+                    # Fallback to BigQuery if Cube fails
+                    logger.warning("Cube query returned no data, falling back to BigQuery")
+                    response.error = "Cube query returned no data"
+            except Exception as e:
+                logger.error(f"Cube execution failed: {e}, falling back to BigQuery")
+                response.error = f"Cube failed: {str(e)}"
+                response.source = "cube_failed"
+        
+        elif route == "bigquery" and response.sql and "SELECT" in response.sql.upper():
             try:
                 data, count = execute_query(response.sql)
                 response.data = data[:100]
                 response.row_count = count
+                response.source = "bigquery"
+                logger.info(f"✅ BigQuery successful: {count} rows")
             except Exception as e:
                 response.error = f"Query execution failed: {str(e)}"
+                response.source = "bigquery_failed"
                 logger.error(f"BigQuery error: {e}")
                 logger.error(f"Failed SQL: {response.sql}")
         
