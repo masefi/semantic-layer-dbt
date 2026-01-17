@@ -15,8 +15,14 @@ from typing import Optional, List, Dict, Any
 logger = logging.getLogger(__name__)
 
 # Cube API Configuration
+# For Cloud Run: Set CUBE_API_URL to your deployed Cube service URL
+# e.g., https://cube-semantic-layer-xxxxx.us-central1.run.app/cubejs-api/v1
 CUBE_API_URL = os.environ.get("CUBE_API_URL", "http://localhost:4000/cubejs-api/v1")
 CUBE_API_SECRET = os.environ.get("CUBEJS_API_SECRET", "retail-semantic-layer-secret-key-change-me")
+
+# Log Cube configuration on import
+logger.info(f"Cube API URL: {CUBE_API_URL}")
+logger.info(f"Cube API Secret configured: {'Yes' if CUBE_API_SECRET != 'retail-semantic-layer-secret-key-change-me' else 'Using default (dev only)'}")
 
 
 def generate_cube_token(expiry_seconds: int = 3600) -> str:

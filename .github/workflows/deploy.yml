@@ -1,104 +1,300 @@
-name: Deploy to Google Cloud Run
+name: Deploy Semantic Layer
 
 on:
   push:
     branches:
-      - "main"
+      - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
+    inputs:
+      deploy_cube:
+        description: 'Deploy Cube service'
+        required: false
+        default: 'true'
+        type: boolean
+      deploy_api:
+        description: 'Deploy API service'
+        required: false
+        default: 'true'
+        type: boolean
+      deploy_ui:
+        description: 'Deploy UI service'
+        required: false
+        default: 'true'
+        type: boolean
+
+env:
+  PROJECT_ID: semantic-layer-484020
+  REGION: us-central1
+  
+  # Service names
+  CUBE_SERVICE: cube-semantic-layer
+  API_SERVICE: semantic-api
+  UI_SERVICE: semantic-ui
 
 jobs:
-  build-and-deploy:
+  # ============================================================
+  # Test & Validate
+  # ============================================================
+  test:
+    name: Test & Validate
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install API dependencies
+        run: |
+          cd api
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Lint API code
+        run: |
+          pip install flake8
+          flake8 api/ --max-line-length=120 --ignore=E501,W503 || true
+
+      - name: Validate Cube models
+        run: |
+          echo "Validating Cube YAML models..."
+          for f in cube/model/cubes/*.yaml; do
+            echo "  Checking $f"
+            python -c "import yaml; yaml.safe_load(open('$f'))"
+          done
+          echo "✅ All Cube models valid"
+
+  # ============================================================
+  # Deploy Cube Service
+  # ============================================================
+  deploy-cube:
+    name: Deploy Cube
+    needs: test
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.deploy_cube)
+    
+    outputs:
+      cube_url: ${{ steps.deploy.outputs.url }}
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Authenticate to GCP
-      uses: google-github-actions/auth@v1
-      with:
-        credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-    - name: Set up Cloud SDK
-      uses: google-github-actions/setup-gcloud@v1
-      with:
-        project_id: ${{ secrets.GCP_PROJECT_ID }}
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
 
-    - name: Authenticate Docker to AR
-      run: |
-        gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+      - name: Configure Docker
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
 
-    # --- PROVISION DATA WAREHOUSE ---
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.10"
+      - name: Deploy Cube to Cloud Run
+        id: deploy
+        run: |
+          cd cube
+          
+          gcloud run deploy ${{ env.CUBE_SERVICE }} \
+            --project ${{ env.PROJECT_ID }} \
+            --region ${{ env.REGION }} \
+            --source . \
+            --platform managed \
+            --allow-unauthenticated \
+            --memory 1Gi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 3 \
+            --timeout 60 \
+            --set-env-vars "CUBEJS_DB_TYPE=bigquery" \
+            --set-env-vars "CUBEJS_DB_BQ_PROJECT_ID=${{ env.PROJECT_ID }}" \
+            --set-env-vars "CUBEJS_API_SECRET=${{ secrets.CUBEJS_API_SECRET }}" \
+            --set-env-vars "CUBEJS_DEV_MODE=false" \
+            --set-env-vars "CUBEJS_TELEMETRY=false"
+          
+          # Get service URL
+          CUBE_URL=$(gcloud run services describe ${{ env.CUBE_SERVICE }} \
+            --project ${{ env.PROJECT_ID }} \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)')
+          
+          echo "url=${CUBE_URL}" >> $GITHUB_OUTPUT
+          echo "✅ Cube deployed to: $CUBE_URL"
 
-    - name: Install dbt
-      run: pip install dbt-bigquery
+  # ============================================================
+  # Deploy API Service
+  # ============================================================
+  deploy-api:
+    name: Deploy API
+    needs: [test, deploy-cube]
+    runs-on: ubuntu-latest
+    if: |
+      always() &&
+      needs.test.result == 'success' &&
+      ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+       (github.event_name == 'workflow_dispatch' && inputs.deploy_api))
+    
+    outputs:
+      api_url: ${{ steps.deploy.outputs.url }}
 
-    - name: Configure dbt profile
-      run: |
-        echo '${{ secrets.GCP_SA_KEY }}' > ./gcp-sa-key.json
-        echo "retail_semantic_layer:" > profiles.yml
-        echo "  target: dev" >> profiles.yml
-        echo "  outputs:" >> profiles.yml
-        echo "    dev:" >> profiles.yml
-        echo "      type: bigquery" >> profiles.yml
-        echo "      method: service-account" >> profiles.yml
-        echo "      project: ${{ secrets.GCP_PROJECT_ID }}" >> profiles.yml
-        echo "      dataset: retail_marts_dev" >> profiles.yml
-        echo "      threads: 4" >> profiles.yml
-        echo "      keyfile: ./gcp-sa-key.json" >> profiles.yml
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Run dbt build
-      run: |
-        dbt deps
-        dbt build --profiles-dir .
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-    # --- BUILD & PUSH ---
-    - name: Build and Push UI Image
-      run: |
-        docker build --platform linux/amd64 \
-          -t us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/retail-repo/semantic-ui:latest \
-          -f ui/Dockerfile ui/
-        docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/retail-repo/semantic-ui:latest
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
 
-    - name: Build and Push API Image
-      run: |
-        docker build --platform linux/amd64 \
-          -t us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/retail-repo/semantic-api:latest \
-          -f api/Dockerfile api/
-        docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/retail-repo/semantic-api:latest
+      - name: Get Cube URL
+        id: cube
+        run: |
+          CUBE_URL="${{ needs.deploy-cube.outputs.cube_url }}"
+          if [ -z "$CUBE_URL" ]; then
+            # Try to get existing Cube service URL
+            CUBE_URL=$(gcloud run services describe ${{ env.CUBE_SERVICE }} \
+              --project ${{ env.PROJECT_ID }} \
+              --region ${{ env.REGION }} \
+              --format 'value(status.url)' 2>/dev/null || echo "")
+          fi
+          echo "url=${CUBE_URL}" >> $GITHUB_OUTPUT
+          echo "Cube URL: ${CUBE_URL:-'Not available'}"
 
-    # --- DEPLOY API FIRST ---
-    - name: Deploy API to Cloud Run
-      id: deploy-api
-      run: |
-        API_URL=$(gcloud run deploy semantic-api \
-          --image us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/retail-repo/semantic-api:latest \
-          --platform managed \
-          --region ${{ secrets.GCP_REGION }} \
-          --allow-unauthenticated \
-          --memory 512Mi \
-          --port 8080 \
-          --format='value(status.url)')
-        echo "API_URL=${API_URL}" >> $GITHUB_OUTPUT
-        echo "Deployed API at: ${API_URL}"
+      - name: Deploy API to Cloud Run
+        id: deploy
+        run: |
+          cd api
+          
+          # Build environment variables
+          ENV_VARS="GCP_PROJECT_ID=${{ env.PROJECT_ID }}"
+          ENV_VARS="$ENV_VARS,BQ_DATASET=retail_marts_dev"
+          
+          if [ -n "${{ steps.cube.outputs.url }}" ]; then
+            ENV_VARS="$ENV_VARS,CUBE_API_URL=${{ steps.cube.outputs.url }}/cubejs-api/v1"
+          fi
+          
+          if [ -n "${{ secrets.CUBEJS_API_SECRET }}" ]; then
+            ENV_VARS="$ENV_VARS,CUBEJS_API_SECRET=${{ secrets.CUBEJS_API_SECRET }}"
+          fi
+          
+          gcloud run deploy ${{ env.API_SERVICE }} \
+            --project ${{ env.PROJECT_ID }} \
+            --region ${{ env.REGION }} \
+            --source . \
+            --platform managed \
+            --allow-unauthenticated \
+            --memory 1Gi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 5 \
+            --timeout 60 \
+            --set-env-vars "$ENV_VARS"
+          
+          # Get service URL
+          API_URL=$(gcloud run services describe ${{ env.API_SERVICE }} \
+            --project ${{ env.PROJECT_ID }} \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)')
+          
+          echo "url=${API_URL}" >> $GITHUB_OUTPUT
+          echo "✅ API deployed to: $API_URL"
 
-    # --- DEPLOY UI WITH API URL ---
-    - name: Deploy UI to Cloud Run
-      run: |
-        gcloud run deploy semantic-ui \
-          --image us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/retail-repo/semantic-ui:latest \
-          --platform managed \
-          --region ${{ secrets.GCP_REGION }} \
-          --allow-unauthenticated \
-          --memory 1Gi \
-          --port 8501 \
-          --set-env-vars API_URL=${{ steps.deploy-api.outputs.API_URL }}
+  # ============================================================
+  # Deploy UI Service
+  # ============================================================
+  deploy-ui:
+    name: Deploy UI
+    needs: [test, deploy-api]
+    runs-on: ubuntu-latest
+    if: |
+      always() &&
+      needs.test.result == 'success' &&
+      ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+       (github.event_name == 'workflow_dispatch' && inputs.deploy_ui))
 
-    - name: Output URLs
-      run: |
-        echo "API deployed at: ${{ steps.deploy-api.outputs.API_URL }}"
-        echo "UI will be at: https://semantic-ui-<hash>.a.run.app"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Get API URL
+        id: api
+        run: |
+          API_URL="${{ needs.deploy-api.outputs.api_url }}"
+          if [ -z "$API_URL" ]; then
+            API_URL=$(gcloud run services describe ${{ env.API_SERVICE }} \
+              --project ${{ env.PROJECT_ID }} \
+              --region ${{ env.REGION }} \
+              --format 'value(status.url)' 2>/dev/null || echo "")
+          fi
+          echo "url=${API_URL}" >> $GITHUB_OUTPUT
+          echo "API URL: ${API_URL:-'Not available'}"
+
+      - name: Deploy UI to Cloud Run
+        run: |
+          cd ui
+          
+          gcloud run deploy ${{ env.UI_SERVICE }} \
+            --project ${{ env.PROJECT_ID }} \
+            --region ${{ env.REGION }} \
+            --source . \
+            --platform managed \
+            --allow-unauthenticated \
+            --memory 512Mi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 3 \
+            --timeout 60 \
+            --set-env-vars "API_URL=${{ steps.api.outputs.url }}"
+          
+          UI_URL=$(gcloud run services describe ${{ env.UI_SERVICE }} \
+            --project ${{ env.PROJECT_ID }} \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)')
+          
+          echo "✅ UI deployed to: $UI_URL"
+
+  # ============================================================
+  # Deployment Summary
+  # ============================================================
+  summary:
+    name: Deployment Summary
+    needs: [deploy-cube, deploy-api, deploy-ui]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Print Summary
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Status | URL |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| Cube | ${{ needs.deploy-cube.result }} | ${{ needs.deploy-cube.outputs.cube_url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| API | ${{ needs.deploy-api.result }} | ${{ needs.deploy-api.outputs.api_url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| UI | ${{ needs.deploy-ui.result }} | - |" >> $GITHUB_STEP_SUMMARY

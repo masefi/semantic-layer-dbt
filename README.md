@@ -221,11 +221,33 @@ curl -X POST https://semantic-api-5592650460.us-central1.run.app/ask \
 - **API Framework:** FastAPI
 - **Deployment:** Google Cloud Run
 
+## 🚀 CI/CD Pipeline
+
+Automated deployment via GitHub Actions:
+
+| Workflow | Trigger | What it does |
+|----------|---------|--------------|
+| `deploy.yml` | Push to `main` | Deploys Cube → API → UI to Cloud Run |
+| `dbt.yml` | Model changes | Runs dbt tests and builds |
+
+### Required Secrets
+
+Configure in **Settings → Secrets → Actions**:
+
+| Secret | Description |
+|--------|-------------|
+| `GCP_SA_KEY` | GCP Service Account JSON key |
+| `CUBEJS_API_SECRET` | Cube API authentication secret |
+
+See [.github/README.md](.github/README.md) for detailed setup instructions.
+
 ## 📖 Documentation
 
 | Document | Description |
 |----------|-------------|
 | **[Architecture Guide](docs/PROJECT_ARCHITECTURE.md)** | Complete system design, all metrics, data models, API reference |
+| **[CI/CD Guide](.github/README.md)** | GitHub Actions setup and deployment |
+| **[Cube Setup](cube/README.md)** | Cube semantic layer configuration |
 | **[dbt Docs](target/)** | Auto-generated dbt documentation (run `dbt docs serve`) |
 
 ## 📚 Resources

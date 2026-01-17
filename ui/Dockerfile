@@ -1,4 +1,4 @@
-FROM python:3.9-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -9,11 +9,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy app code
 COPY . .
 
-# Expose Streamlit port
+# Cloud Run uses PORT env variable
+ENV PORT=8501
 EXPOSE 8501
 
 # Healthcheck
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
+HEALTHCHECK CMD curl --fail http://localhost:${PORT}/_stcore/health || exit 1
 
-# Run command
-CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Run command - use shell form to expand $PORT
+CMD streamlit run app.py --server.port=${PORT} --server.address=0.0.0.0 --server.headless=true

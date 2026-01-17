@@ -1,0 +1,163 @@
+name: dbt CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'models/**'
+      - 'macros/**'
+      - 'tests/**'
+      - 'dbt_project.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'models/**'
+      - 'macros/**'
+      - 'tests/**'
+      - 'dbt_project.yml'
+  workflow_dispatch:
+    inputs:
+      full_refresh:
+        description: 'Run with --full-refresh'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  PROJECT_ID: semantic-layer-484020
+  DBT_DATASET: retail_marts_dev
+
+jobs:
+  # ============================================================
+  # dbt Test (on PR)
+  # ============================================================
+  dbt-test:
+    name: dbt Test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dbt
+        run: pip install dbt-bigquery
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Create dbt profile
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml << EOF
+          retail_semantic_layer:
+            target: ci
+            outputs:
+              ci:
+                type: bigquery
+                method: oauth
+                project: ${{ env.PROJECT_ID }}
+                dataset: ${{ env.DBT_DATASET }}_ci_${{ github.run_id }}
+                location: US
+                threads: 4
+          EOF
+
+      - name: dbt deps
+        run: dbt deps
+
+      - name: dbt compile
+        run: dbt compile
+
+      - name: dbt test (schema tests only)
+        run: dbt test --select "test_type:schema_test"
+
+      - name: Cleanup CI dataset
+        if: always()
+        run: |
+          bq rm -r -f -d ${{ env.PROJECT_ID }}:${{ env.DBT_DATASET }}_ci_${{ github.run_id }} || true
+
+  # ============================================================
+  # dbt Run (on merge to main)
+  # ============================================================
+  dbt-run:
+    name: dbt Run
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dbt
+        run: pip install dbt-bigquery
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Create dbt profile
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml << EOF
+          retail_semantic_layer:
+            target: prod
+            outputs:
+              prod:
+                type: bigquery
+                method: oauth
+                project: ${{ env.PROJECT_ID }}
+                dataset: ${{ env.DBT_DATASET }}
+                location: US
+                threads: 4
+          EOF
+
+      - name: dbt deps
+        run: dbt deps
+
+      - name: dbt run
+        run: |
+          if [ "${{ inputs.full_refresh }}" == "true" ]; then
+            dbt run --full-refresh
+          else
+            dbt run
+          fi
+
+      - name: dbt test
+        run: dbt test
+
+      - name: Generate dbt docs
+        run: |
+          dbt docs generate
+          echo "📚 dbt docs generated"
+
+      - name: Upload dbt artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-artifacts
+          path: |
+            target/manifest.json
+            target/run_results.json
+            target/catalog.json
+
+      - name: Print Summary
+        run: |
+          echo "## 📊 dbt Run Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Project:** ${{ env.PROJECT_ID }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dataset:** ${{ env.DBT_DATASET }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Full Refresh:** ${{ inputs.full_refresh || 'false' }}" >> $GITHUB_STEP_SUMMARY

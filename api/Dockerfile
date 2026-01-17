@@ -16,4 +16,5 @@ ENV BQ_DATASET=retail_marts_dev
 
 EXPOSE 8080
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Use shell form to expand $PORT for Cloud Run
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT}

@@ -10,6 +10,33 @@ Cube provides a governed metrics layer on top of your dbt marts, offering:
 - **Governance**: Access control and query validation
 - **REST API**: Query metrics via HTTP endpoints
 
+## Deployment Options
+
+### Option 1: Cloud Run (Production) ⭐ Recommended
+
+```bash
+# Deploy Cube to Cloud Run
+cd cube
+chmod +x deploy.sh
+./deploy.sh
+
+# Then redeploy the API to connect to Cube
+cd ../api
+chmod +x deploy.sh
+./deploy.sh
+```
+
+### Option 2: Local Docker (Development)
+
+```bash
+cd cube
+docker-compose up -d
+```
+
+### Option 3: Cube Cloud (Managed)
+
+Sign up at [cube.dev/cloud](https://cube.dev/cloud) and import this configuration.
+
 ## Architecture
 
 ```
