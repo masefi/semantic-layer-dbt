@@ -190,34 +190,63 @@ dbt docs serve
 | `retail_marts` | Production (future) |
 | `retail_public_demo` | Reviewer-accessible views |
 
-## 🤖 Natural Language Query (NLQ) API
+## 🤖 Smart NLQ with Intelligent Routing
 
-The NLQ API allows users to ask questions in plain English and get SQL-executed results.
+The NLQ API features **smart routing** - Gemini analyzes your question and automatically chooses the best execution path:
 
-### Example Queries
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    User Question                              │
+│            "What is our total revenue?"                       │
+└──────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌──────────────────────────────────────────────────────────────┐
+│                   Gemini LLM Analysis                         │
+│              "This is a simple aggregation..."                │
+└──────────────────────────────────────────────────────────────┘
+                            │
+              ┌─────────────┴─────────────┐
+              ▼                           ▼
+┌──────────────────────┐    ┌──────────────────────┐
+│  🧊 CUBE (Cached)    │    │  🔧 BigQuery (Ad-hoc)│
+│  - Total revenue     │    │  - RFM segments      │
+│  - Orders by country │    │  - Product analysis  │
+│  - Daily trends      │    │  - Complex joins     │
+└──────────────────────┘    └──────────────────────┘
+```
 
-| Question | What It Does |
-|----------|--------------|
-| "What was our revenue last month?" | Returns monthly revenue from `fct_monthly_revenue` |
-| "Show me customers in the Champions segment" | Filters `fct_rfm_scores` for top customers |
-| "Which products have the highest return rate?" | Queries `fct_product_performance` |
-| "What's our conversion rate by traffic source?" | Analyzes `fct_web_funnel` |
+### Route Examples
+
+| Question | Route | Why |
+|----------|-------|-----|
+| "What is our total revenue?" | 🧊 Cube | Simple aggregation → cached |
+| "Revenue by country" | 🧊 Cube | Grouped metric → governed |
+| "Champions segment customers" | 🔧 BigQuery | RFM analysis → not in Cube |
+| "Products with highest return rate" | 🔧 BigQuery | Complex query → ad-hoc SQL |
 
 ### API Endpoints
 
 ```bash
-# Health check
+# Health check (shows Cube & BigQuery status)
 curl https://semantic-api-5592650460.us-central1.run.app/
 
-# Ask a question
+# Smart NLQ - automatically routes to Cube or BigQuery
 curl -X POST https://semantic-api-5592650460.us-central1.run.app/ask \
   -H "Content-Type: application/json" \
-  -d '{"query": "What are the total sales by category?", "execute": true}'
+  -d '{"query": "What is our total revenue by country?"}'
+
+# Direct Cube query
+curl -X POST https://semantic-api-5592650460.us-central1.run.app/cube/query \
+  -H "Content-Type: application/json" \
+  -d '{"measures": ["orders.total_revenue"], "dimensions": ["orders.country"]}'
 ```
 
 ### Technology
 
 - **LLM:** Google Gemini 2.5 Flash (via Vertex AI)
+- **Semantic Layer:** Cube.js (cached, governed metrics)
+- **Data Warehouse:** BigQuery (ad-hoc queries)
 - **API Framework:** FastAPI
 - **Deployment:** Google Cloud Run
 
@@ -239,16 +268,24 @@ Configure in **Settings → Secrets → Actions**:
 | `GCP_SA_KEY` | GCP Service Account JSON key |
 | `CUBEJS_API_SECRET` | Cube API authentication secret |
 
-See [.github/README.md](.github/README.md) for detailed setup instructions.
+See [.github/CICD.md](.github/CICD.md) for detailed setup instructions.
+
+## 🌐 Live Demo
+
+| Service | URL |
+|---------|-----|
+| **UI (Streamlit)** | https://semantic-ui-5592650460.us-central1.run.app |
+| **API (FastAPI)** | https://semantic-api-5592650460.us-central1.run.app |
+| **Cube** | https://cube-semantic-layer-5592650460.us-central1.run.app |
 
 ## 📖 Documentation
 
 | Document | Description |
 |----------|-------------|
 | **[Architecture Guide](docs/PROJECT_ARCHITECTURE.md)** | Complete system design, all metrics, data models, API reference |
-| **[CI/CD Guide](.github/README.md)** | GitHub Actions setup and deployment |
+| **[CI/CD Guide](.github/CICD.md)** | GitHub Actions setup and deployment |
 | **[Cube Setup](cube/README.md)** | Cube semantic layer configuration |
-| **[dbt Docs](target/)** | Auto-generated dbt documentation (run `dbt docs serve`) |
+| **[Terraform Infrastructure](https://github.com/masefi/terraform-semantic-layer)** | GCP IAM & service accounts |
 
 ## 📚 Resources
 
